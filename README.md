@@ -1,4 +1,4 @@
-# Metawurks AI 
+# Metawurks Chat Interface  
 
 An enterprise-grade, production-ready chat interface built with **Next.js 14**, **Tailwind CSS v4**, and **TypeScript**. This application features a highly responsive UI, manual message submission flow, and a modular architecture.
 
