@@ -30,7 +30,7 @@ export const Sidebar = ({ onNewChat, onClearChat, isOpen, setIsOpen }: SidebarPr
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-[#171717] text-white transition-transform duration-300 lg:static lg:translate-x-0 h-full",
+        "fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-white dark:bg-[#171717] text-gray-900 dark:text-white border-r border-gray-200 dark:border-none transition-transform duration-300 lg:static lg:translate-x-0 h-full",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         {/* New Chat Button */}
@@ -40,7 +40,7 @@ export const Sidebar = ({ onNewChat, onClearChat, isOpen, setIsOpen }: SidebarPr
               onNewChat();
               if (window.innerWidth < 1024) setIsOpen(false);
             }}
-            className="flex w-full items-center gap-3 rounded-md border border-white/20 p-3 text-sm font-medium transition-colors hover:bg-white/10"
+            className="flex w-full items-center gap-3 rounded-md border border-gray-200 dark:border-white/20 p-3 text-sm font-medium transition-colors hover:bg-gray-100 dark:hover:bg-white/10"
           >
             <Plus size={16} />
             New chat
@@ -52,15 +52,15 @@ export const Sidebar = ({ onNewChat, onClearChat, isOpen, setIsOpen }: SidebarPr
         </div>
 
         {/* Footer */}
-        <div className="border-t border-white/10 p-4 space-y-2">
+        <div className="border-t border-gray-200 dark:border-white/10 p-4 space-y-2">
           <button 
             onClick={onClearChat}
-            className="flex w-full items-center gap-3 rounded-md p-2 text-sm text-red-400 transition-colors hover:bg-red-950/30"
+            className="flex w-full items-center gap-3 rounded-md p-2 text-sm text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30"
           >
             <Trash2 size={16} />
             Clear Chat
           </button>
-          <button className="flex w-full items-center gap-3 rounded-md p-2 text-sm transition-colors hover:bg-white/10">
+          <button className="flex w-full items-center gap-3 rounded-md p-2 text-sm transition-colors hover:bg-gray-100 dark:hover:bg-white/10">
             <Settings size={16} />
             Settings
           </button>

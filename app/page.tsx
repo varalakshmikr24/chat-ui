@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatWindow } from '@/components/ChatWindow';
 import { InputArea } from '@/components/InputArea';
-import { useTheme } from 'next-themes';
 import { Menu, Sun, Moon } from 'lucide-react';
+import { useTheme } from 'next-themes';
 
 interface Message {
   id: string;
@@ -26,9 +26,7 @@ export default function Home() {
     setMounted(true);
   }, []);
 
-  // Frontend-Backend Integration (Requirement 5)
   const handleSendMessage = async (content: string, questionId?: string) => {
-    // Step A: Immediately add user's message to state (full text)
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -37,18 +35,15 @@ export default function Home() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
-
-    // Step B: Set loading/typing indicator to true
     setIsLoading(true);
 
     try {
-      // Step C: fetch() to send message (ONLY questionId if available)
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          questionId: questionId || null,
-          messages: [...messages, userMessage]
+          ...(questionId ? { questionId } : {}),
+          messages: userMessage
         }),
       });
 
@@ -56,7 +51,6 @@ export default function Home() {
 
       const aiMessageData = await response.json();
 
-      // Step D: Add bot's message to state and hide loading indicator
       const aiMessage: Message = {
         ...aiMessageData,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -98,7 +92,6 @@ export default function Home() {
       />
 
       <main className="relative flex flex-1 flex-col overflow-hidden">
-        {/* Requirement 59: Header with Title */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white/80 px-4 backdrop-blur dark:border-gray-800 dark:bg-[#212121]/80 z-20">
           <div className="flex items-center gap-3">
             <button
@@ -123,7 +116,6 @@ export default function Home() {
           </button>
         </header>
 
-        {/* Child Components handling Requirements 60, 61, 82 */}
         <ChatWindow messages={messages} isLoading={isLoading} />
 
         <div className="shrink-0 pb-4 md:pb-6">

@@ -18,15 +18,39 @@ export async function POST(req: Request) {
   try {
     const { questionId, messages } = await req.json();
     
+    // Support both single message and array of messages (for backward compatibility if needed, but we prefer latest)
+    const currentMessage = Array.isArray(messages) ? messages[messages.length - 1] : messages;
+    const userContent = currentMessage?.content?.trim().toLowerCase() || "";
+
     // Requirement 2: 1.5-second logic-first delay
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     // Determine the response based on questionId or fallback to text content
     let responseContent = "";
 
+    // Mapping of question text to IDs for matching manually typed/pasted questions
+    const TEXT_TO_ID_MAP: Record<string, string> = {
+      "tell me about next.js app router": "chat_q1",
+      "how does state management work here?": "chat_q2",
+      "what are the benefits of typescript?": "chat_q3",
+      "explain the project architecture": "chat_q4",
+      "how to deploy this to vercel?": "chat_q5",
+      "what is tailwind css v4's main feature?": "chat_q6",
+      "how to implement dark mode manually?": "chat_q7",
+      "what is the role of an api route handler?": "chat_q8",
+      "explain react server components": "chat_q9",
+      "how to optimize performance in next.js?": "chat_q10",
+    };
+
+    // 1. Try matching by questionId
     if (questionId && QUESTION_MAP[questionId]) {
       responseContent = QUESTION_MAP[questionId];
-    } else {
+    } 
+    // 2. Try matching by exact text (case-insensitive)
+    else if (TEXT_TO_ID_MAP[userContent]) {
+      responseContent = QUESTION_MAP[TEXT_TO_ID_MAP[userContent]];
+    }
+    else {
       // Professional fallback response for standard text input
       responseContent = "That's an interesting question. I'm currently set up to provide detailed answers to preset professional questions, but I can tell you that Metawurks AI is designed for enterprise-grade performance and scalability.";
     }

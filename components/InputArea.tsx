@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { SendHorizontal, Plus } from 'lucide-react';
+import { CircleArrowUp, Plus } from 'lucide-react';
 
 interface InputAreaProps {
   onSendMessage: (content: string, questionId?: string) => void;
@@ -30,14 +30,24 @@ export const InputArea = ({ onSendMessage, isLoading }: InputAreaProps) => {
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (input.trim() && !isLoading) {
-      onSendMessage(input.trim());
+      const trimmedInput = input.trim();
+      // Find matches in preset questions (case-insensitive)
+      const matchedQuestion = PRESET_QUESTIONS.find(
+        q => q.text.toLowerCase() === trimmedInput.toLowerCase()
+      );
+      
+      onSendMessage(trimmedInput, matchedQuestion?.id);
       setInput('');
     }
   };
 
   const handleSelectQuestion = (question: { id: string; text: string }) => {
-    onSendMessage(question.text, question.id);
+    setInput(question.text);
     setIsMenuOpen(false);
+    // Focus the textarea after selecting a question
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -123,7 +133,7 @@ export const InputArea = ({ onSendMessage, isLoading }: InputAreaProps) => {
                 : "bg-blue-600 text-white opacity-50 cursor-not-allowed scale-95"
             }`}
           >
-            <SendHorizontal size={20} />
+            <CircleArrowUp size={28} />
           </button>
         </div>
       </form>
