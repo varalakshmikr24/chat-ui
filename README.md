@@ -3,7 +3,7 @@
 An enterprise-grade, production-ready ChatGPT clone built with **Next.js 14**, **Tailwind CSS v4**, and **TypeScript**. This application features a highly responsive UI, manual message submission flow, and a modular architecture.
 
 ## 🚀 Live Demo
-**Link**: [Insert your Vercel URL here]
+**Link**: https://chat-ui-tau-liart.vercel.app/
 
 ## 🛠️ Features
 - **Modern UI/UX**: Claude-inspired collapsible sidebar that transitions into a sleek icon-only toolbar.
