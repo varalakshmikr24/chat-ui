@@ -1,11 +1,17 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatWindow } from '@/components/ChatWindow';
 import { InputArea } from '@/components/InputArea';
+import { Menu, Sun, Moon, PanelLeft } from 'lucide-react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 import { useTheme } from 'next-themes';
-import { Menu, Sun, Moon } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -18,7 +24,7 @@ interface Message {
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -26,34 +32,31 @@ export default function Home() {
     setMounted(true);
   }, []);
 
-  // Frontend-Backend Integration (Requirement 5)
-  const handleSendMessage = async (content: string) => {
-    // Step A: Immediately add user's message to state
+  const handleSendMessage = async (content: string, questionId?: string) => {
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content,
+      content: content,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    
-    // Step B: Set loading/typing indicator to true
     setIsLoading(true);
 
     try {
-      // Step C: fetch() to send message to /api/chat
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, userMessage] }),
+        body: JSON.stringify({
+          ...(questionId ? { questionId } : {}),
+          messages: userMessage
+        }),
       });
 
       if (!response.ok) throw new Error('Failed to fetch response');
 
       const aiMessageData = await response.json();
-      
-      // Step D: Add bot's message to state and hide loading indicator
+
       const aiMessage: Message = {
         ...aiMessageData,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -94,19 +97,22 @@ export default function Home() {
         setIsOpen={setIsSidebarOpen}
       />
 
-      <main className="relative flex flex-1 flex-col overflow-hidden">
-        {/* Requirement 59: Header with Title */}
+      <main 
+        className={cn(
+          "relative flex flex-1 flex-col overflow-hidden transition-all duration-300",
+          isSidebarOpen ? "lg:ml-64" : "lg:ml-[60px]"
+        )}
+      >
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white/80 px-4 backdrop-blur dark:border-gray-800 dark:bg-[#212121]/80 z-20">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="rounded-md p-1 hover:bg-gray-100 dark:hover:bg-gray-800 lg:hidden"
-            >
-              <Menu size={24} />
-            </button>
-            <h1 className="text-sm font-semibold md:text-base">Metawurks AI</h1>
+            {!isSidebarOpen && (
+              <h1 className="text-sm font-semibold md:text-base lg:text-gray-400">Metawurks AI</h1>
+            )}
+            {isSidebarOpen && (
+              <h1 className="text-sm font-semibold md:text-base lg:hidden">Metawurks AI</h1>
+            )}
           </div>
-          
+
           <button
             onClick={toggleTheme}
             className="flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -115,19 +121,15 @@ export default function Home() {
             {!mounted ? (
               <div className="h-5 w-5" />
             ) : (
-              isDarkMode ? <Moon size={20} className="text-blue-400" /> : <Sun size={20} className="text-yellow-500" />
+              isDarkMode ? <Sun size={20} className="text-yellow-500" /> : <Moon size={20} className="text-gray-600" />
             )}
           </button>
         </header>
 
-        {/* Child Components handling Requirements 60, 61, 82 */}
         <ChatWindow messages={messages} isLoading={isLoading} />
-        
+
         <div className="shrink-0 pb-4 md:pb-6">
           <InputArea onSendMessage={handleSendMessage} isLoading={isLoading} />
-          <p className="mt-2 text-center text-xs text-gray-500">
-            Metawurks AI can make mistakes. Check important info.
-          </p>
         </div>
       </main>
     </div>

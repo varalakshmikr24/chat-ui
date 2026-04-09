@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+@variant dark (&:where(.dark, .dark *));
 
 @theme inline {
   --color-chat-dark: #212121;
@@ -18,11 +19,22 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
 }
 
 .dark {
   --background: #212121;
   --foreground: #ececf1;
+  --card: #303030;
+  --card-foreground: #ececf1;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 body {
