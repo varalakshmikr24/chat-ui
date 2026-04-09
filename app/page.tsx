@@ -27,32 +27,35 @@ export default function Home() {
   }, []);
 
   // Frontend-Backend Integration (Requirement 5)
-  const handleSendMessage = async (content: string) => {
-    // Step A: Immediately add user's message to state
+  const handleSendMessage = async (content: string, questionId?: string) => {
+    // Step A: Immediately add user's message to state (full text)
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content,
+      content: content,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    
+
     // Step B: Set loading/typing indicator to true
     setIsLoading(true);
 
     try {
-      // Step C: fetch() to send message to /api/chat
+      // Step C: fetch() to send message (ONLY questionId if available)
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, userMessage] }),
+        body: JSON.stringify({
+          questionId: questionId || null,
+          messages: [...messages, userMessage]
+        }),
       });
 
       if (!response.ok) throw new Error('Failed to fetch response');
 
       const aiMessageData = await response.json();
-      
+
       // Step D: Add bot's message to state and hide loading indicator
       const aiMessage: Message = {
         ...aiMessageData,
@@ -106,7 +109,7 @@ export default function Home() {
             </button>
             <h1 className="text-sm font-semibold md:text-base">Metawurks AI</h1>
           </div>
-          
+
           <button
             onClick={toggleTheme}
             className="flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -115,19 +118,16 @@ export default function Home() {
             {!mounted ? (
               <div className="h-5 w-5" />
             ) : (
-              isDarkMode ? <Moon size={20} className="text-blue-400" /> : <Sun size={20} className="text-yellow-500" />
+              isDarkMode ? <Sun size={20} className="text-yellow-500" /> : <Moon size={20} className="text-gray-600" />
             )}
           </button>
         </header>
 
         {/* Child Components handling Requirements 60, 61, 82 */}
         <ChatWindow messages={messages} isLoading={isLoading} />
-        
+
         <div className="shrink-0 pb-4 md:pb-6">
           <InputArea onSendMessage={handleSendMessage} isLoading={isLoading} />
-          <p className="mt-2 text-center text-xs text-gray-500">
-            Metawurks AI can make mistakes. Check important info.
-          </p>
         </div>
       </main>
     </div>

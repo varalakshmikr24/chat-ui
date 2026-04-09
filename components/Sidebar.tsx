@@ -17,12 +17,6 @@ interface SidebarProps {
 }
 
 export const Sidebar = ({ onNewChat, onClearChat, isOpen, setIsOpen }: SidebarProps) => {
-  const [history] = useState([
-    { id: '1', title: 'Brainstorming SaaS ideas' },
-    { id: '2', title: 'React Performance Tips' },
-    { id: '3', title: 'Next.js 14 vs 15' },
-    { id: '4', title: 'Tailwind CSS v4 overview' },
-  ]);
 
   return (
     <>
@@ -53,20 +47,8 @@ export const Sidebar = ({ onNewChat, onClearChat, isOpen, setIsOpen }: SidebarPr
           </button>
         </div>
 
-        {/* History */}
         <div className="flex-1 overflow-y-auto px-4 py-2">
-          <div className="mb-2 text-xs font-semibold uppercase text-gray-500 px-3">Recents</div>
-          <div className="space-y-1">
-            {history.map((item) => (
-              <button
-                key={item.id}
-                className="group flex w-full items-center gap-3 rounded-md p-3 text-sm transition-colors hover:bg-white/10"
-              >
-                <MessageSquare size={16} className="shrink-0 text-gray-400" />
-                <span className="truncate text-left">{item.title}</span>
-              </button>
-            ))}
-          </div>
+          {/* Recent history can be added here in the future */}
         </div>
 
         {/* Footer */}
