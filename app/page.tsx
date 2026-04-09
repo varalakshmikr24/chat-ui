@@ -4,7 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatWindow } from '@/components/ChatWindow';
 import { InputArea } from '@/components/InputArea';
-import { Menu, Sun, Moon } from 'lucide-react';
+import { Menu, Sun, Moon, PanelLeft } from 'lucide-react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 import { useTheme } from 'next-themes';
 
 interface Message {
@@ -18,7 +24,7 @@ interface Message {
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -91,16 +97,20 @@ export default function Home() {
         setIsOpen={setIsSidebarOpen}
       />
 
-      <main className="relative flex flex-1 flex-col overflow-hidden">
+      <main 
+        className={cn(
+          "relative flex flex-1 flex-col overflow-hidden transition-all duration-300",
+          isSidebarOpen ? "lg:ml-64" : "lg:ml-[60px]"
+        )}
+      >
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white/80 px-4 backdrop-blur dark:border-gray-800 dark:bg-[#212121]/80 z-20">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="rounded-md p-1 hover:bg-gray-100 dark:hover:bg-gray-800 lg:hidden"
-            >
-              <Menu size={24} />
-            </button>
-            <h1 className="text-sm font-semibold md:text-base">Metawurks AI</h1>
+            {!isSidebarOpen && (
+              <h1 className="text-sm font-semibold md:text-base lg:text-gray-400">Metawurks AI</h1>
+            )}
+            {isSidebarOpen && (
+              <h1 className="text-sm font-semibold md:text-base lg:hidden">Metawurks AI</h1>
+            )}
           </div>
 
           <button

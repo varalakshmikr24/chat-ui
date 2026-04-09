@@ -67,7 +67,7 @@ export const Message = ({ message }: MessageProps) => {
               ? "bg-red-500 text-white rounded-tl-none border border-red-400"
               : isAssistant 
                 ? "bg-white dark:bg-[#303030] text-gray-900 dark:text-gray-100 rounded-tl-none border border-gray-100 dark:border-gray-700" 
-                : "bg-blue-600 text-white rounded-tr-none"
+                : "bg-blue-200 text-white rounded-tr-none"
           )}>
             <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-gray-800 prose-pre:text-gray-100">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
