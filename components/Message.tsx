@@ -51,7 +51,7 @@ export const Message = ({ message }: MessageProps) => {
         {/* Avatar */}
         <div className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm mt-1",
-          isAssistant ? "bg-[#10a37f] text-white" : "bg-blue-600 text-white"
+          isAssistant ? "bg-[#10a37f] text-white" : "bg-blue-600 text-white dark:text-black"
         )}>
           {isAssistant ? <Bot size={18} /> : <User size={18} />}
         </div>
@@ -67,9 +67,14 @@ export const Message = ({ message }: MessageProps) => {
               ? "bg-red-500 text-white rounded-tl-none border border-red-400"
               : isAssistant 
                 ? "bg-white dark:bg-[#303030] text-gray-900 dark:text-gray-100 rounded-tl-none border border-gray-100 dark:border-gray-700" 
-                : "bg-blue-200 text-white rounded-tr-none"
+                : "bg-blue-200 rounded-tr-none"
           )}>
-            <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-gray-800 prose-pre:text-gray-100">
+            <div className={cn(
+              "prose prose-sm md:prose-base max-w-none prose-p:leading-relaxed prose-pre:bg-gray-800 prose-pre:text-gray-100",
+              isAssistant 
+                ? "dark:prose-invert text-gray-900 dark:text-gray-100" 
+                : "text-black prose-p:text-black prose-strong:text-black prose-headings:text-black"
+            )}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {message.content}
               </ReactMarkdown>
