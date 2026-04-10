@@ -17,7 +17,7 @@ const QUESTION_MAP: Record<string, string> = {
 export async function POST(req: Request) {
   try {
     const { questionId, messages } = await req.json();
-    
+
     // Support both single message and array of messages (for backward compatibility if needed, but we prefer latest)
     const currentMessage = Array.isArray(messages) ? messages[messages.length - 1] : messages;
     const userContent = currentMessage?.content?.trim().toLowerCase() || "";
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     // 1. Try matching by questionId
     if (questionId && QUESTION_MAP[questionId]) {
       responseContent = QUESTION_MAP[questionId];
-    } 
+    }
     // 2. Try matching by exact text (case-insensitive)
     else if (TEXT_TO_ID_MAP[userContent]) {
       responseContent = QUESTION_MAP[TEXT_TO_ID_MAP[userContent]];

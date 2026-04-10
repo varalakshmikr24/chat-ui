@@ -4,43 +4,102 @@ import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatWindow } from '@/components/ChatWindow';
 import { InputArea } from '@/components/InputArea';
-import { Menu, Sun, Moon, PanelLeft } from 'lucide-react';
+import { Sun, Moon } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useTheme } from 'next-themes';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
-import { useTheme } from 'next-themes';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
-  isError?: boolean;
+}
+
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: Message[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 export default function Home() {
+  const [chats, setChats] = useState<ChatSession[]>([]);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
+  // Load chats from localStorage on mount
   useEffect(() => {
     setMounted(true);
+    const savedChats = localStorage.getItem('metawurks_chats');
+    if (savedChats) {
+      try {
+        const parsed = JSON.parse(savedChats);
+        setChats(parsed);
+      } catch (e) {
+        console.error('Failed to parse chats:', e);
+      }
+    }
   }, []);
 
+  // Sync chats to localStorage
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem('metawurks_chats', JSON.stringify(chats));
+    }
+  }, [chats, mounted]);
+
   const handleSendMessage = async (content: string, questionId?: string) => {
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: content,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      content,
+      timestamp,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    let activeId = currentChatId;
+    let updatedChats = [...chats];
+
+    // Create new chat if none active
+    if (!activeId) {
+      activeId = Date.now().toString();
+      const newChat: ChatSession = {
+        id: activeId,
+        title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
+        messages: [userMessage],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      updatedChats = [newChat, ...updatedChats];
+      setChats(updatedChats);
+      setCurrentChatId(activeId);
+    } else {
+      // Add message to existing chat
+      updatedChats = updatedChats.map(chat => {
+        if (chat.id === activeId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, userMessage],
+            updatedAt: Date.now()
+          };
+        }
+        return chat;
+      }).sort((a, b) => b.updatedAt - a.updatedAt);
+      setChats(updatedChats);
+    }
+
+    setMessages(updatedChats.find(c => c.id === activeId)?.messages || []);
     setIsLoading(true);
 
     try {
@@ -54,7 +113,6 @@ export default function Home() {
       });
 
       if (!response.ok) throw new Error('Failed to fetch response');
-
       const aiMessageData = await response.json();
 
       const aiMessage: Message = {
@@ -62,37 +120,68 @@ export default function Home() {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
-      setMessages((prev) => [...prev, aiMessage]);
+      // Update chats with AI response
+      setChats(prev => prev.map(chat => {
+        if (chat.id === activeId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, aiMessage],
+            updatedAt: Date.now()
+          };
+        }
+        return chat;
+      }).sort((a, b) => b.updatedAt - a.updatedAt));
+      
+      setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: "Error: Failed to process request. Please try again.",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isError: true
-      };
-      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleClearChat = () => {
+  const handleNewChat = () => {
+    setCurrentChatId(null);
+    setMessages([]);
+  };
+
+  const handleSelectChat = (id: string) => {
+    const chat = chats.find(c => c.id === id);
+    if (chat) {
+      setCurrentChatId(id);
+      setMessages(chat.messages);
+    }
+  };
+
+  const handleDeleteChat = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setChats(prev => prev.filter(c => c.id !== id));
+    if (currentChatId === id) {
+      handleNewChat();
+    }
+  };
+
+  const handleClearCurrent = () => {
+    if (currentChatId) {
+      setChats(prev => prev.map(chat => 
+        chat.id === currentChatId ? { ...chat, messages: [], updatedAt: Date.now() } : chat
+      ));
+    }
     setMessages([]);
   };
 
   const isDarkMode = resolvedTheme === 'dark';
-
-  const toggleTheme = () => {
-    setTheme(isDarkMode ? 'light' : 'dark');
-  };
+  const toggleTheme = () => setTheme(isDarkMode ? 'light' : 'dark');
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-white dark:bg-[#212121] text-gray-900 dark:text-gray-100 transition-colors duration-300">
       <Sidebar
-        onNewChat={() => setMessages([])}
-        onClearChat={handleClearChat}
+        chats={chats}
+        activeId={currentChatId}
+        onNewChat={handleNewChat}
+        onSelectChat={handleSelectChat}
+        onDeleteChat={handleDeleteChat}
+        onClearChat={handleClearCurrent}
         isOpen={isSidebarOpen}
         setIsOpen={setIsSidebarOpen}
       />
@@ -104,12 +193,14 @@ export default function Home() {
         )}
       >
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white/80 px-4 backdrop-blur dark:border-gray-800 dark:bg-[#212121]/80 z-20">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {!isSidebarOpen && (
-              <h1 className="text-sm font-semibold md:text-base lg:text-gray-400">Metawurks AI</h1>
-            )}
-            {isSidebarOpen && (
-              <h1 className="text-sm font-semibold md:text-base lg:hidden">Metawurks AI</h1>
+               <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                  <div className="h-6 w-6 rounded bg-blue-600 flex items-center justify-center shrink-0">
+                    <span className="text-white text-[10px] font-bold">M</span>
+                  </div>
+                  <h1 className="text-sm font-semibold md:text-base">Metawurks AI</h1>
+               </div>
             )}
           </div>
 
