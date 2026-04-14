@@ -18,6 +18,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  isError?: boolean;
 }
 
 interface ChatSession {
@@ -34,6 +35,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isDemoMode, setIsDemoMode] = useState(false);
   
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -103,20 +105,72 @@ export default function Home() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...(questionId ? { questionId } : {}),
-          messages: userMessage
-        }),
-      });
+      let aiMessageContent = "";
+      let aiMessageId = Date.now().toString();
 
-      if (!response.ok) throw new Error('Failed to fetch response');
-      const aiMessageData = await response.json();
+      if (isDemoMode) {
+        // --- EXISTING MOCK LOGIC ---
+        const QUESTION_MAP: Record<string, string> = {
+          'chat_q1': "The Next.js App Router (introduced in version 13) uses React Server Components to simplify data fetching and improve performance by reducing the amount of JavaScript sent to the client.",
+          'chat_q2': "In this application, we use React's `useState` for local message state and `next-themes` for global theme management. For larger apps, tools like Zustand or Redux are often preferred.",
+          'chat_q3': "TypeScript provides static type checking, which catches errors early in development, improves IDE autocompletion, and makes the codebase much easier to refactor and maintain.",
+          'chat_q4': "This project follows a modular Next.js App Router structure. Components are stored in `/components`, pages in `/app`, and API logic in `/app/api` for clear separation of concerns.",
+          'chat_q5': "To deploy to Vercel, push your code to GitHub, connect your repository in the Vercel dashboard, and it will automatically build and deploy your application with every push.",
+          'chat_q6': "Tailwind CSS v4 introduces a new 'high-performance' engine, zero-config setup, and first-class support for modern CSS features like CSS variables and container queries.",
+          'chat_q7': "Manual dark mode is implemented using the `dark:` utility classes in Tailwind. The `next-themes` library handles the logic of adding the `.dark` class to the HTML element.",
+          'chat_q8': "API Route Handlers in Next.js allow you to create RESTful endpoints. They run on the server, meaning you can safely handle secret keys and database connections away from the client.",
+          'chat_q9': "React Server Components (RSC) allow components to be rendered on the server. This results in faster page loads as the initial HTML is generated and sent before the JavaScript hydrates.",
+          'chat_q10': "Optimization techniques in Next.js include using the `<Image />` component for automatic optimization, implementing dynamic imports, and leveraging Incremental Static Regeneration (ISR).",
+        };
+
+        const TEXT_TO_ID_MAP: Record<string, string> = {
+          "tell me about next.js app router": "chat_q1",
+          "how does state management work here?": "chat_q2",
+          "what are the benefits of typescript?": "chat_q3",
+          "explain the project architecture": "chat_q4",
+          "how to deploy this to vercel?": "chat_q5",
+          "what is tailwind css v4's main feature?": "chat_q6",
+          "how to implement dark mode manually?": "chat_q7",
+          "what is the role of an api route handler?": "chat_q8",
+          "explain react server components": "chat_q9",
+          "how to optimize performance in next.js?": "chat_q10",
+        };
+
+        const userContent = content.trim().toLowerCase();
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+
+        if (questionId && QUESTION_MAP[questionId]) {
+          aiMessageContent = QUESTION_MAP[questionId];
+        } else if (TEXT_TO_ID_MAP[userContent]) {
+          aiMessageContent = QUESTION_MAP[TEXT_TO_ID_MAP[userContent]];
+        } else {
+          aiMessageContent = "That's an interesting question. I'm currently set up to provide detailed answers to preset professional questions in Demo Mode, but I can tell you that Metawurks AI is designed for enterprise-grade performance and scalability.";
+        }
+      } else {
+        // --- REAL API CALL ---
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: userMessage.content,
+            history: updatedChats.find(c => c.id === activeId)?.messages.slice(0, -1) || []
+          }),
+        });
+
+        if (!response.ok) {
+           const errData = await response.json().catch(() => ({}));
+           throw new Error(errData.error || 'Failed to fetch response');
+        }
+        
+        const aiMessageData = await response.json();
+        aiMessageContent = aiMessageData.content;
+        aiMessageId = aiMessageData.id;
+      }
 
       const aiMessage: Message = {
-        ...aiMessageData,
+        id: aiMessageId,
+        role: 'assistant',
+        content: aiMessageContent,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
@@ -133,8 +187,16 @@ export default function Home() {
       }).sort((a, b) => b.updatedAt - a.updatedAt));
       
       setMessages(prev => [...prev, aiMessage]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `Error: ${error.message || 'Something went wrong. Please try again.'}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -175,16 +237,18 @@ export default function Home() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-white dark:bg-[#212121] text-gray-900 dark:text-gray-100 transition-colors duration-300">
-      <Sidebar
-        chats={chats}
-        activeId={currentChatId}
-        onNewChat={handleNewChat}
-        onSelectChat={handleSelectChat}
-        onDeleteChat={handleDeleteChat}
-        onClearChat={handleClearCurrent}
-        isOpen={isSidebarOpen}
-        setIsOpen={setIsSidebarOpen}
-      />
+        <Sidebar
+          chats={chats}
+          activeId={currentChatId}
+          onNewChat={handleNewChat}
+          onSelectChat={handleSelectChat}
+          onDeleteChat={handleDeleteChat}
+          onClearChat={handleClearCurrent}
+          isOpen={isSidebarOpen}
+          setIsOpen={setIsSidebarOpen}
+          isDemoMode={isDemoMode}
+          setIsDemoMode={setIsDemoMode}
+        />
 
       <main 
         className={cn(
@@ -202,6 +266,19 @@ export default function Home() {
                   <h1 className="text-sm font-semibold md:text-base">Metawurks AI</h1>
                </div>
             )}
+            
+            <div className="flex items-center gap-2 ml-2">
+              {isDemoMode ? (
+                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800 animate-pulse">
+                  Mock Mode
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                  <span className="mr-1 h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                  Live Mode
+                </span>
+              )}
+            </div>
           </div>
 
           <button

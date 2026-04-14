@@ -27,6 +27,8 @@ interface SidebarProps {
   onClearChat: () => void;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  isDemoMode: boolean;
+  setIsDemoMode: (mode: boolean) => void;
 }
 
 export const Sidebar = ({ 
@@ -37,7 +39,9 @@ export const Sidebar = ({
   onDeleteChat,
   onClearChat, 
   isOpen, 
-  setIsOpen 
+  setIsOpen,
+  isDemoMode,
+  setIsDemoMode
 }: SidebarProps) => {
 
   return (
@@ -135,6 +139,39 @@ export const Sidebar = ({
                 <Trash2 size={16} />
                 <span>Clear current chat</span>
               </button>
+
+              {/* Mode Toggle */}
+              <div className="px-3 py-2">
+                <div className="flex items-center justify-between rounded-xl bg-gray-50 dark:bg-white/5 p-3 border border-gray-200 dark:border-white/10">
+                   <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "p-1.5 rounded-lg",
+                        isDemoMode ? "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400" : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
+                      )}>
+                        {isDemoMode ? <Settings size={16} /> : <div className="h-4 w-4 rounded-full bg-emerald-500 animate-pulse" />}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Mode</span>
+                        <span className="text-sm font-semibold">{isDemoMode ? "Demo" : "Gemini"}</span>
+                      </div>
+                   </div>
+                   <button 
+                    onClick={() => setIsDemoMode(!isDemoMode)}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none",
+                      isDemoMode ? "bg-amber-500" : "bg-emerald-500"
+                    )}
+                   >
+                     <span
+                      className={cn(
+                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                        isDemoMode ? "translate-x-6" : "translate-x-1"
+                      )}
+                     />
+                   </button>
+                </div>
+              </div>
+
               <button className="flex items-center gap-3 w-full rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-600 text-white text-xs font-bold">
                   VK
@@ -147,6 +184,9 @@ export const Sidebar = ({
             </>
           ) : (
             <div className="flex flex-col items-center gap-4 pb-2">
+              <button onClick={() => setIsDemoMode(!isDemoMode)} className={cn("transition-colors", isDemoMode ? "text-amber-500" : "text-emerald-500")} title={isDemoMode ? "Switch to Real Mode" : "Switch to Demo Mode"}>
+                {isDemoMode ? <Settings size={18}/> : <div className="h-4 w-4 rounded-full bg-emerald-500" />}
+              </button>
               <button onClick={onClearChat} className="text-red-500 hover:scale-110 transition-transform"><Trash2 size={18}/></button>
               <button className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-600 text-white text-[10px] font-bold shadow-md">
                 VK
