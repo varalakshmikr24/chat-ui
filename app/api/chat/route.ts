@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai'; // Note: Ensure you are using the correct package name
 import OpenAI from 'openai';
 
+// Define the interface to fix the "implicitly has an 'any' type" error
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 // Initialize the Gemini SDK
-const genAI = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // Initialize Groq (OpenAI compatible)
 const groq = new OpenAI({
@@ -27,7 +31,7 @@ export async function POST(req: Request) {
     }
 
     // 1. Extract and format the history array
-    const messagesForAI = (history || [])
+    const messagesForAI: ChatMessage[] = (history || [])
       .filter((msg: any) => !msg.isError)
       .map((msg: any) => ({
         role: msg.role === 'assistant' ? 'assistant' : 'user',
@@ -40,38 +44,37 @@ export async function POST(req: Request) {
     let responseText = "";
 
     if (modelName === 'llama') {
-        // --- GROQ (LLAMA) LOGIC ---
-        const completion = await groq.chat.completions.create({
-            messages: messagesForAI,
-            model: "llama-3.1-8b-instant",
-        });
-        responseText = completion.choices[0].message.content || "";
+      // --- GROQ (LLAMA) LOGIC ---
+      const completion = await groq.chat.completions.create({
+        messages: messagesForAI,
+        model: "llama-3.1-8b-instant",
+      });
+      responseText = completion.choices[0].message.content || "";
 
     } else {
-        // --- GEMINI LOGIC ---
-        // Transform the structured messages into Gemini's expected format
-        const contents = messagesForAI.map(msg => ({
-            role: msg.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: msg.content }]
-        }));
+      // --- GEMINI LOGIC ---
+      // FIX: Explicitly typed 'msg' to avoid the 'any' type error
+      const contents = messagesForAI.map((msg: ChatMessage) => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+      }));
 
-        // Gemini requires alternating roles (user, model, user...)
-        // We'll filter to ensure we strictly follow this pattern if needed,
-        // but for a standard chat, the history usually already alternates.
-        const sanitizedContents = [];
-        let lastRole = null;
-        for (const content of contents) {
-            if (content.role !== lastRole) {
-                sanitizedContents.push(content);
-                lastRole = content.role;
-            }
+      // Gemini requires alternating roles (user, model, user...)
+      const sanitizedContents = [];
+      let lastRole = null;
+      for (const content of contents) {
+        if (content.role !== lastRole) {
+          sanitizedContents.push(content);
+          lastRole = content.role;
         }
+      }
 
-        const response = await genAI.models.generateContent({
-            model: 'gemini-flash-latest',
-            contents: sanitizedContents,
-        });
-        responseText = response.text || "";
+      const modelInstance = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const result = await modelInstance.generateContent({
+        contents: sanitizedContents,
+      });
+      const response = await result.response;
+      responseText = response.text() || "";
     }
 
     return NextResponse.json({
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('API Error Detail:', error);
-    
+
     const errorMessage = error.message || 'Unknown error occurred during generation';
     const status = error.status || 500;
 
