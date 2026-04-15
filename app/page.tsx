@@ -35,7 +35,8 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [chatMode, setChatMode] = useState<'demo' | 'gemini' | 'llama'>('gemini');
+  const [isLimitExceeded, setIsLimitExceeded] = useState(false);
   
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -108,7 +109,7 @@ export default function Home() {
       let aiMessageContent = "";
       let aiMessageId = Date.now().toString();
 
-      if (isDemoMode) {
+      if (chatMode === 'demo') {
         // --- EXISTING MOCK LOGIC ---
         const QUESTION_MAP: Record<string, string> = {
           'chat_q1': "The Next.js App Router (introduced in version 13) uses React Server Components to simplify data fetching and improve performance by reducing the amount of JavaScript sent to the client.",
@@ -153,12 +154,21 @@ export default function Home() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: userMessage.content,
-            history: updatedChats.find(c => c.id === activeId)?.messages.slice(0, -1) || []
+            history: updatedChats.find(c => c.id === activeId)?.messages.slice(0, -1) || [],
+            model: chatMode
           }),
         });
 
         if (!response.ok) {
            const errData = await response.json().catch(() => ({}));
+           
+           // Detect 429 Quota Exceeded
+           if (response.status === 429 || errData.error?.includes('429') || errData.error?.includes('quota') || errData.error?.includes('limit')) {
+             setIsLimitExceeded(true);
+             setChatMode('demo');
+             throw new Error(`${chatMode.toUpperCase()} Limit Reached. Automatically switched to Demo Mode.`);
+           }
+           
            throw new Error(errData.error || 'Failed to fetch response');
         }
         
@@ -246,8 +256,12 @@ export default function Home() {
           onClearChat={handleClearCurrent}
           isOpen={isSidebarOpen}
           setIsOpen={setIsSidebarOpen}
-          isDemoMode={isDemoMode}
-          setIsDemoMode={setIsDemoMode}
+          chatMode={chatMode}
+          setChatMode={(mode) => {
+            setChatMode(mode as 'demo' | 'gemini' | 'llama');
+            if (isLimitExceeded) setIsLimitExceeded(false); // Reset on manual toggle
+          }}
+          isLimitExceeded={isLimitExceeded}
         />
 
       <main 
@@ -268,14 +282,22 @@ export default function Home() {
             )}
             
             <div className="flex items-center gap-2 ml-2">
-              {isDemoMode ? (
+              {chatMode === 'demo' ? (
                 <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800 animate-pulse">
                   Mock Mode
                 </span>
               ) : (
-                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                  <span className="mr-1 h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                  Live Mode
+                <span className={cn(
+                  "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border",
+                  chatMode === 'gemini' 
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                    : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800"
+                )}>
+                  <span className={cn(
+                    "mr-1 h-1.5 w-1.5 rounded-full",
+                    chatMode === 'gemini' ? "bg-emerald-500" : "bg-blue-500"
+                  )}></span>
+                  {chatMode === 'gemini' ? 'Gemini Live' : 'Llama 3.1 Live'}
                 </span>
               )}
             </div>

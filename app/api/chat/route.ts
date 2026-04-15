@@ -1,79 +1,98 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 
 // Initialize the Gemini SDK
 const genAI = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || '',
 });
 
+// Initialize Groq (OpenAI compatible)
+const groq = new OpenAI({
+  baseURL: 'https://api.groq.com/openai/v1',
+  apiKey: process.env.GROQ_API_KEY || '',
+});
+
 export async function POST(req: Request) {
+  let modelName = 'unknown';
   try {
-    const { message, history } = await req.json();
+    const { message, history, model } = await req.json();
+    modelName = model || 'gemini';
 
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: 'Gemini API key is not configured' },
-        { status: 500 }
-      );
+    if (modelName === 'gemini' && !process.env.GEMINI_API_KEY) {
+      return NextResponse.json({ error: 'Gemini API key is not configured' }, { status: 500 });
+    }
+    if (modelName === 'llama' && !process.env.GROQ_API_KEY) {
+      return NextResponse.json({ error: 'Groq API key is not configured' }, { status: 500 });
     }
 
-    // Format and sanitize history for Gemini
-    // Gemini requires alternating roles starting with 'user' and ending with 'model'
-    const sanitizedContents: any[] = [];
-    let nextExpectedRole = 'user';
+    // 1. Extract and format the history array
+    const messagesForAI = (history || [])
+      .filter((msg: any) => !msg.isError)
+      .map((msg: any) => ({
+        role: msg.role === 'assistant' ? 'assistant' : 'user',
+        content: msg.content
+      }));
 
-    if (Array.isArray(history)) {
-      for (const msg of history) {
-        if (msg.isError) continue; // Skip error messages
+    // 2. Append the new message as the final user entry
+    messagesForAI.push({ role: 'user', content: message });
 
-        const role = msg.role === 'assistant' ? 'model' : 'user';
-        
-        // Ensure strictly alternating roles
-        if (role === nextExpectedRole) {
-          sanitizedContents.push({
-            role: role,
-            parts: [{ text: msg.content }],
-          });
-          nextExpectedRole = role === 'user' ? 'model' : 'user';
+    let responseText = "";
+
+    if (modelName === 'llama') {
+        // --- GROQ (LLAMA) LOGIC ---
+        const completion = await groq.chat.completions.create({
+            messages: messagesForAI,
+            model: "llama-3.1-8b-instant",
+        });
+        responseText = completion.choices[0].message.content || "";
+
+    } else {
+        // --- GEMINI LOGIC ---
+        // Transform the structured messages into Gemini's expected format
+        const contents = messagesForAI.map(msg => ({
+            role: msg.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: msg.content }]
+        }));
+
+        // Gemini requires alternating roles (user, model, user...)
+        // We'll filter to ensure we strictly follow this pattern if needed,
+        // but for a standard chat, the history usually already alternates.
+        const sanitizedContents = [];
+        let lastRole = null;
+        for (const content of contents) {
+            if (content.role !== lastRole) {
+                sanitizedContents.push(content);
+                lastRole = content.role;
+            }
         }
-      }
+
+        const response = await genAI.models.generateContent({
+            model: 'gemini-flash-latest',
+            contents: sanitizedContents,
+        });
+        responseText = response.text || "";
     }
-
-    // If the history ends with a user message, we must remove it 
-    // because the current 'message' will be the next user message.
-    if (sanitizedContents.length > 0 && sanitizedContents[sanitizedContents.length - 1].role === 'user') {
-      sanitizedContents.pop();
-    }
-
-    // Append the current message
-    sanitizedContents.push({
-      role: 'user',
-      parts: [{ text: message }],
-    });
-
-    // Use gemini-flash-latest for best availability
-    const response = await genAI.models.generateContent({
-      model: 'gemini-flash-latest',
-      contents: sanitizedContents,
-    });
 
     return NextResponse.json({
       id: Date.now().toString(),
       role: 'assistant',
-      content: response.text,
+      content: responseText,
     });
   } catch (error: any) {
-    console.error('Gemini API Error Detail:', error);
+    console.error('API Error Detail:', error);
     
-    const errorMessage = error.message || 'Unknown error occurred during Gemini generation';
+    const errorMessage = error.message || 'Unknown error occurred during generation';
     const status = error.status || 500;
 
     return NextResponse.json(
-      { error: `Gemini Error: ${errorMessage}`, detail: error },
+      { error: `${modelName.toUpperCase()} Error: ${errorMessage}`, detail: error },
       { status }
     );
   }
 }
+
+
 
 
 

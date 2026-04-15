@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Plus, PanelLeft, Trash2, Settings, User, X } from 'lucide-react';
+import { Plus, PanelLeft, Trash2, Settings, User, X, Sparkles, Zap, Cpu } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { ChatHistoryList } from './ChatHistoryList';
@@ -27,8 +27,9 @@ interface SidebarProps {
   onClearChat: () => void;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
-  isDemoMode: boolean;
-  setIsDemoMode: (mode: boolean) => void;
+  chatMode: 'demo' | 'gemini' | 'llama';
+  setChatMode: (mode: 'demo' | 'gemini' | 'llama') => void;
+  isLimitExceeded?: boolean;
 }
 
 export const Sidebar = ({ 
@@ -40,8 +41,9 @@ export const Sidebar = ({
   onClearChat, 
   isOpen, 
   setIsOpen,
-  isDemoMode,
-  setIsDemoMode
+  chatMode,
+  setChatMode,
+  isLimitExceeded
 }: SidebarProps) => {
 
   return (
@@ -140,35 +142,68 @@ export const Sidebar = ({
                 <span>Clear current chat</span>
               </button>
 
-              {/* Mode Toggle */}
+              {/* Mode Selector */}
               <div className="px-3 py-2">
-                <div className="flex items-center justify-between rounded-xl bg-gray-50 dark:bg-white/5 p-3 border border-gray-200 dark:border-white/10">
-                   <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "p-1.5 rounded-lg",
-                        isDemoMode ? "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400" : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
-                      )}>
-                        {isDemoMode ? <Settings size={16} /> : <div className="h-4 w-4 rounded-full bg-emerald-500 animate-pulse" />}
+                <div className={cn(
+                  "flex flex-col gap-3 rounded-xl bg-gray-50 dark:bg-white/5 p-3 border",
+                  isLimitExceeded ? "border-amber-400 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-900/10" : "border-gray-200 dark:border-white/10"
+                )}>
+                   <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Select Model</span>
+                        {isLimitExceeded && (
+                          <div className="flex items-center gap-1 text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                            <span className="h-1 w-1 rounded-full bg-amber-500" />
+                            Quota Full
+                          </div>
+                        )}
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Mode</span>
-                        <span className="text-sm font-semibold">{isDemoMode ? "Demo" : "Gemini"}</span>
+                      
+                      <div className="flex p-1 bg-gray-200/50 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
+                        <button 
+                          onClick={() => setChatMode('demo')}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-[11px] font-semibold transition-all",
+                            chatMode === 'demo' 
+                              ? "bg-white dark:bg-white/10 text-amber-600 dark:text-amber-400 shadow-sm ring-1 ring-black/5" 
+                              : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                          )}
+                        >
+                          <Settings size={12} />
+                          <span>Demo</span>
+                        </button>
+                        <button 
+                          onClick={() => setChatMode('gemini')}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-[11px] font-semibold transition-all",
+                            chatMode === 'gemini' 
+                              ? "bg-white dark:bg-white/10 text-emerald-600 dark:text-emerald-400 shadow-sm ring-1 ring-black/5" 
+                              : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                          )}
+                        >
+                          <Sparkles size={12} className={cn(chatMode === 'gemini' && "animate-pulse")} />
+                          <span>Gemini</span>
+                        </button>
+                        <button 
+                          onClick={() => setChatMode('llama')}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-[11px] font-semibold transition-all",
+                            chatMode === 'llama' 
+                              ? "bg-white dark:bg-white/10 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-black/5" 
+                              : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                          )}
+                        >
+                          <Cpu size={12} className={cn(chatMode === 'llama' && "animate-pulse")} />
+                          <span>Llama (Groq)</span>
+                        </button>
                       </div>
                    </div>
-                   <button 
-                    onClick={() => setIsDemoMode(!isDemoMode)}
-                    className={cn(
-                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none",
-                      isDemoMode ? "bg-amber-500" : "bg-emerald-500"
-                    )}
-                   >
-                     <span
-                      className={cn(
-                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                        isDemoMode ? "translate-x-6" : "translate-x-1"
-                      )}
-                     />
-                   </button>
+                   
+                   {isLimitExceeded && (
+                     <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
+                        Try another model or switch to Demo Mode.
+                     </p>
+                   )}
                 </div>
               </div>
 
@@ -184,9 +219,29 @@ export const Sidebar = ({
             </>
           ) : (
             <div className="flex flex-col items-center gap-4 pb-2">
-              <button onClick={() => setIsDemoMode(!isDemoMode)} className={cn("transition-colors", isDemoMode ? "text-amber-500" : "text-emerald-500")} title={isDemoMode ? "Switch to Real Mode" : "Switch to Demo Mode"}>
-                {isDemoMode ? <Settings size={18}/> : <div className="h-4 w-4 rounded-full bg-emerald-500" />}
-              </button>
+              <div className="flex flex-col gap-2 items-center">
+                <button 
+                  onClick={() => setChatMode('demo')} 
+                  className={cn("p-1 rounded-md transition-all", chatMode === 'demo' ? "bg-amber-500 text-white" : "text-gray-400 hover:text-gray-200")}
+                  title="Demo Mode"
+                >
+                  <Settings size={16}/>
+                </button>
+                <button 
+                  onClick={() => setChatMode('gemini')} 
+                  className={cn("p-1 rounded-md transition-all", chatMode === 'gemini' ? "bg-emerald-500 text-white" : "text-gray-400 hover:text-gray-200")}
+                  title="Gemini Mode"
+                >
+                  <Sparkles size={16} />
+                </button>
+                <button 
+                  onClick={() => setChatMode('llama')} 
+                  className={cn("p-1.5 rounded-md transition-all", chatMode === 'llama' ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "text-gray-400 hover:text-gray-200")}
+                  title="Llama (Groq) Mode"
+                >
+                  <Cpu size={16} />
+                </button>
+              </div>
               <button onClick={onClearChat} className="text-red-500 hover:scale-110 transition-transform"><Trash2 size={18}/></button>
               <button className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-600 text-white text-[10px] font-bold shadow-md">
                 VK
