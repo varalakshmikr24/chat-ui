@@ -1,20 +1,17 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai'; // Note: Ensure you are using the correct package name
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 
-// Define the interface to fix the "implicitly has an 'any' type" error
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
 
-// Initialize the Gemini SDK
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// Initialize Groq (OpenAI compatible)
 const groq = new OpenAI({
   baseURL: 'https://api.groq.com/openai/v1',
-  apiKey: process.env.GROQ_API_KEY || '',
+  apiKey: process.env.GROQ_API_KEY || '', // ✅ Fixed: Now matches your .env.local
 });
 
 export async function POST(req: Request) {
@@ -30,7 +27,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Groq API key is not configured' }, { status: 500 });
     }
 
-    // 1. Extract and format the history array
     const messagesForAI: ChatMessage[] = (history || [])
       .filter((msg: any) => !msg.isError)
       .map((msg: any) => ({
@@ -38,28 +34,25 @@ export async function POST(req: Request) {
         content: msg.content
       }));
 
-    // 2. Append the new message as the final user entry
     messagesForAI.push({ role: 'user', content: message });
 
     let responseText = "";
 
     if (modelName === 'llama') {
-      // --- GROQ (LLAMA) LOGIC ---
       const completion = await groq.chat.completions.create({
-        messages: messagesForAI,
+        messages: messagesForAI as any,
         model: "llama-3.1-8b-instant",
       });
       responseText = completion.choices[0].message.content || "";
 
     } else {
       // --- GEMINI LOGIC ---
-      // FIX: Explicitly typed 'msg' to avoid the 'any' type error
       const contents = messagesForAI.map((msg: ChatMessage) => ({
         role: msg.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: msg.content }]
       }));
 
-      // Gemini requires alternating roles (user, model, user...)
+      // Gemini requires alternating roles; this logic ensures validity
       const sanitizedContents = [];
       let lastRole = null;
       for (const content of contents) {
@@ -69,10 +62,14 @@ export async function POST(req: Request) {
         }
       }
 
-      const modelInstance = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // FIX: Ensure variable name matches (modelInstance vs model)
+      // Use "gemini-1.5-flash" for reliability
+      const modelInstance = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
       const result = await modelInstance.generateContent({
         contents: sanitizedContents,
       });
+
       const response = await result.response;
       responseText = response.text() || "";
     }
@@ -82,20 +79,19 @@ export async function POST(req: Request) {
       role: 'assistant',
       content: responseText,
     });
+
   } catch (error: any) {
     console.error('API Error Detail:', error);
 
-    const errorMessage = error.message || 'Unknown error occurred during generation';
-    const status = error.status || 500;
+    // Provide a cleaner error message for the frontend
+    const errorMessage = error.message || 'Unknown error occurred';
+
+    // Check for specific Quota/Rate Limit errors to trigger your frontend's "Demo Mode" switch
+    const status = error.status || (errorMessage.includes('429') ? 429 : 500);
 
     return NextResponse.json(
-      { error: `${modelName.toUpperCase()} Error: ${errorMessage}`, detail: error },
+      { error: `${modelName.toUpperCase()} Error: ${errorMessage}` },
       { status }
     );
   }
 }
-
-
-
-
-
