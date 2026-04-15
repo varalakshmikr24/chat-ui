@@ -319,7 +319,12 @@ export default function Home() {
         <ChatWindow messages={messages} isLoading={isLoading} />
 
         <div className="shrink-0 pb-4 md:pb-6">
-          <InputArea onSendMessage={handleSendMessage} isLoading={isLoading} />
+          <InputArea 
+            onSendMessage={handleSendMessage} 
+            isLoading={isLoading} 
+            chatMode={chatMode}
+            setChatMode={setChatMode}
+          />
         </div>
       </main>
     </div>

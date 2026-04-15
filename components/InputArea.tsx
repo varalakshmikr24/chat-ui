@@ -1,11 +1,12 @@
-"use client";
-
 import React, { useState, useRef, useEffect } from 'react';
-import { CircleArrowUp, Plus } from 'lucide-react';
+import { CircleArrowUp, Plus, ChevronDown, Check, Sparkles, Cpu, Settings, Zap } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface InputAreaProps {
   onSendMessage: (content: string, questionId?: string) => void;
   isLoading: boolean;
+  chatMode: 'demo' | 'gemini' | 'llama';
+  setChatMode: (mode: 'demo' | 'gemini' | 'llama') => void;
 }
 
 const PRESET_QUESTIONS = [
@@ -21,17 +22,28 @@ const PRESET_QUESTIONS = [
   { id: 'chat_q10', text: "How to optimize performance in Next.js?" },
 ];
 
-export const InputArea = ({ onSendMessage, isLoading }: InputAreaProps) => {
+const MODELS = [
+  { id: 'demo', name: 'Demo', icon: Settings, color: 'text-amber-500' },
+  { id: 'gemini', name: 'Gemini', icon: Sparkles, color: 'text-emerald-500' },
+  { id: 'llama', name: 'Llama (Groq)', icon: Cpu, color: 'text-blue-500' },
+] as const;
+
+export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: InputAreaProps) => {
   const [input, setInput] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  const [extendedThinking, setExtendedThinking] = useState(false);
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
+
+  const currentModel = MODELS.find(m => m.id === chatMode) || MODELS[1];
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (input.trim() && !isLoading) {
       const trimmedInput = input.trim();
-      // Find matches in preset questions (case-insensitive)
       const matchedQuestion = PRESET_QUESTIONS.find(
         q => q.text.toLowerCase() === trimmedInput.toLowerCase()
       );
@@ -44,7 +56,6 @@ export const InputArea = ({ onSendMessage, isLoading }: InputAreaProps) => {
   const handleSelectQuestion = (question: { id: string; text: string }) => {
     setInput(question.text);
     setIsMenuOpen(false);
-    // Focus the textarea after selecting a question
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
@@ -57,11 +68,14 @@ export const InputArea = ({ onSendMessage, isLoading }: InputAreaProps) => {
     }
   };
 
-  // Close menu when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsMenuOpen(false);
+      }
+      if (modelMenuRef.current && !modelMenuRef.current.contains(event.target as Node)) {
+        setIsModelMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -78,39 +92,95 @@ export const InputArea = ({ onSendMessage, isLoading }: InputAreaProps) => {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 md:px-0 relative">
-      {/* Question Menu */}
-      {isMenuOpen && (
-        <div 
-          ref={menuRef}
-          className="absolute bottom-full left-4 right-4 mb-2 max-h-60 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-2xl dark:border-gray-700 dark:bg-[#303030] md:left-0 md:right-0 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
-        >
-          <div className="mb-2 px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            Suggested Questions
-          </div>
-          {PRESET_QUESTIONS.map((q) => (
-            <button
-              key={q.id}
-              onClick={() => handleSelectQuestion(q)}
-              className="flex w-full items-center px-3 py-2 text-sm text-left rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
-            >
-              {q.text}
-            </button>
-          ))}
-        </div>
-      )}
+      <AnimatePresence>
+        {/* Question Menu */}
+        {isMenuOpen && (
+          <motion.div 
+            ref={menuRef}
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="absolute bottom-full left-4 right-4 mb-2 max-h-60 overflow-y-auto rounded-xl border border-gray-200 bg-white/90 backdrop-blur-xl p-2 shadow-2xl dark:border-gray-700 dark:bg-[#303030]/90 md:left-0 md:right-0 z-50"
+          >
+            <div className="mb-2 px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Suggested Questions
+            </div>
+            {PRESET_QUESTIONS.map((q) => (
+              <button
+                key={q.id}
+                onClick={() => handleSelectQuestion(q)}
+                className="flex w-full items-center px-3 py-2 text-sm text-left rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
+              >
+                {q.text}
+              </button>
+            ))}
+          </motion.div>
+        )}
+
+        {/* Model Matcher/Dropdown */}
+        {isModelMenuOpen && (
+          <motion.div
+            ref={modelMenuRef}
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-full right-4 mb-4 w-60 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur-xl p-2 shadow-2xl dark:border-gray-800 dark:bg-[#1f1f1f]/95 z-50 overflow-hidden"
+          >
+            <div className="flex flex-col gap-1">
+              {MODELS.map((model) => (
+                <button
+                  key={model.id}
+                  onClick={() => {
+                    setChatMode(model.id as any);
+                    setIsModelMenuOpen(false);
+                  }}
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200 ${
+                    chatMode === model.id 
+                      ? "bg-gray-100 dark:bg-white/10" 
+                      : "hover:bg-gray-50 dark:hover:bg-white/5"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <model.icon size={18} className={model.color} />
+                    <span className="text-sm font-medium dark:text-gray-200">{model.name}</span>
+                  </div>
+                  {chatMode === model.id && <Check size={16} className="text-blue-500" />}
+                </button>
+              ))}
+            </div>
+            
+            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-white/5 px-2 pb-1">
+              <label className="flex items-center justify-between cursor-pointer group">
+                <div className="flex items-center gap-2">
+                  <Zap size={15} className="text-amber-500" />
+                  <span className="text-xs font-medium text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300">Extended thinking</span>
+                </div>
+                <div 
+                  onClick={() => setExtendedThinking(!extendedThinking)}
+                  className={`relative w-8 h-4.5 rounded-full transition-colors ${extendedThinking ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+                >
+                  <div className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-white rounded-full transition-transform ${extendedThinking ? 'translate-x-3.5' : 'translate-x-0'}`} />
+                </div>
+              </label>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <form
         onSubmit={handleSubmit}
-        className="relative flex w-full items-center rounded-2xl border border-gray-200 bg-white shadow-lg transition-shadow focus-within:ring-2 focus-within:ring-blue-500/20 dark:border-gray-700 dark:bg-[#303030] dark:focus-within:ring-blue-500/40"
+        className="relative flex w-full flex-col rounded-3xl border border-gray-200 bg-white/80 backdrop-blur-md shadow-xl transition-all hover:shadow-2xl focus-within:ring-2 focus-within:ring-blue-500/20 dark:border-gray-700 dark:bg-[#2f2f2f]/80 dark:focus-within:ring-blue-500/40"
       >
         <div className="flex w-full items-end gap-2 p-2 px-3">
           <button
             type="button"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="flex h-10 w-10 shrink-0 mb-1 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
-            title="Professional questions"
+            className="flex h-9 w-9 shrink-0 mb-1.5 items-center justify-center rounded-xl bg-gray-100/50 dark:bg-gray-800/50 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+            title="Preset questions"
           >
-            <Plus size={20} className={`transition-transform duration-200 ${isMenuOpen ? "rotate-45" : ""}`} />
+            <Plus size={18} className={`transition-transform duration-200 ${isMenuOpen ? "rotate-45" : ""}`} />
           </button>
 
           <textarea
@@ -119,24 +189,38 @@ export const InputArea = ({ onSendMessage, isLoading }: InputAreaProps) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message Metawurks AI..."
-            className="flex-1 resize-none bg-transparent py-3 text-sm md:text-base outline-none disabled:cursor-not-allowed min-h-[52px]"
+            placeholder="Ask anything..."
+            className="flex-1 resize-none bg-transparent py-3.5 pr-32 text-sm md:text-base outline-none disabled:cursor-not-allowed min-h-[56px] placeholder:text-gray-400 dark:placeholder:text-gray-500"
             disabled={isLoading}
           />
+
+          {/* Model Selector Pill */}
+          <div className="absolute right-14 bottom-3 flex items-center">
+             <button
+              type="button"
+              onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
+              className="group flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/5 shadow-sm"
+             >
+               <currentModel.icon size={14} className={currentModel.color} />
+               <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{currentModel.name}</span>
+               <ChevronDown size={14} className="text-gray-400 dark:text-gray-500" />
+             </button>
+          </div>
 
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className={`flex h-10 w-10 shrink-0 mb-1 items-center justify-center rounded-xl transition-all ${
+            className={`flex h-9 w-9 shrink-0 mb-1.5 items-center justify-center rounded-full transition-all ${
               input.trim() && !isLoading
-                ? "bg-blue-600 text-white shadow-md hover:bg-blue-700 scale-100"
-                : "bg-blue-600 text-white opacity-50 cursor-not-allowed scale-95"
+                ? "bg-black dark:bg-white text-white dark:text-black shadow-lg hover:scale-105 active:scale-95"
+                : "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 opacity-50 cursor-not-allowed"
             }`}
           >
-            <CircleArrowUp size={28} />
+            <CircleArrowUp size={20} />
           </button>
         </div>
       </form>
     </div>
   );
 };
+
