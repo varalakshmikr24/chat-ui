@@ -1,7 +1,7 @@
-// We are disabling the auth proxy to bypass login
-export const proxy = () => {
-  return null;
-};
+import NextAuth from "next-auth";
+import { authConfig } from "./auth.config";
+
+export const proxy = NextAuth(authConfig).auth;
 
 export const config = {
   matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],

@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "Enterprise-grade Chat Interface built with Next.js",
 };
 
+import AuthProvider from "@/components/AuthProvider";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -19,14 +21,16 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className} suppressHydrationWarning>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
+        <AuthProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+          </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

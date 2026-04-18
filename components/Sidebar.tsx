@@ -5,6 +5,7 @@ import { Plus, PanelLeft, Trash2, Settings, User, X, Sparkles, Zap, Cpu } from '
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { ChatHistoryList } from './ChatHistoryList';
+import { UserAccountNav } from './UserAccountNav';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -132,34 +133,17 @@ export const Sidebar = ({
 
         {/* Profile / Footer Section */}
         <div className="mt-auto p-3 shrink-0 border-t border-gray-200 dark:border-white/5 space-y-1">
-          {isOpen ? (
-            <>
-              <button 
-                onClick={onClearChat}
-                className="flex items-center gap-3 w-full rounded-lg p-3 text-sm text-red-500 transition-all hover:bg-red-50 dark:hover:bg-red-950/30"
-              >
-                <Trash2 size={16} />
-                <span>Clear current chat</span>
-              </button>
-
-              <button className="flex items-center gap-3 w-full rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-600 text-white text-xs font-bold">
-                  VK
-                </div>
-                <div className="flex-1 text-left">
-                  <div className="text-sm font-medium truncate">Varalakshmi K R</div>
-                </div>
-                <Settings size={16} className="text-gray-400" />
-              </button>
-            </>
-          ) : (
-            <div className="flex flex-col items-center gap-4 pb-2">
-              <button onClick={onClearChat} className="text-red-500 hover:scale-110 transition-transform"><Trash2 size={18}/></button>
-              <button className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-600 text-white text-[10px] font-bold shadow-md">
-                VK
-              </button>
-            </div>
+          {isOpen && (
+            <button 
+              onClick={onClearChat}
+              className="flex items-center gap-3 w-full rounded-lg p-3 text-sm text-red-500 transition-all hover:bg-red-50 dark:hover:bg-red-950/30 mb-1"
+            >
+              <Trash2 size={16} />
+              <span>Clear current chat</span>
+            </button>
           )}
+          
+          <UserAccountNav isCollapsed={!isOpen} />
         </div>
 
         {/* Mobile close x */}

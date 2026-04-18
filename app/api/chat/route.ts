@@ -11,7 +11,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 const groq = new OpenAI({
   baseURL: 'https://api.groq.com/openai/v1',
-  apiKey: process.env.GROQ_API_KEY || '', // ✅ Fixed: Now matches your .env.local
+  apiKey: process.env.GROQ_API_KEY || '', 
 });
 
 export async function POST(req: Request) {

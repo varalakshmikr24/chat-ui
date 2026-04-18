@@ -33,7 +33,7 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [extendedThinking, setExtendedThinking] = useState(false);
-  
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const modelMenuRef = useRef<HTMLDivElement>(null);
@@ -47,7 +47,7 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
       const matchedQuestion = PRESET_QUESTIONS.find(
         q => q.text.toLowerCase() === trimmedInput.toLowerCase()
       );
-      
+
       onSendMessage(trimmedInput, matchedQuestion?.id);
       setInput('');
     }
@@ -95,7 +95,7 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
       <AnimatePresence>
         {/* Question Menu */}
         {isMenuOpen && (
-          <motion.div 
+          <motion.div
             ref={menuRef}
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -136,11 +136,10 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
                     setChatMode(model.id as any);
                     setIsModelMenuOpen(false);
                   }}
-                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200 ${
-                    chatMode === model.id 
-                      ? "bg-gray-100 dark:bg-white/10" 
-                      : "hover:bg-gray-50 dark:hover:bg-white/5"
-                  }`}
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200 ${chatMode === model.id
+                    ? "bg-gray-100 dark:bg-white/10"
+                    : "hover:bg-gray-50 dark:hover:bg-white/5"
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <model.icon size={18} className={model.color} />
@@ -150,14 +149,14 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
                 </button>
               ))}
             </div>
-            
+
             <div className="mt-2 pt-2 border-t border-gray-100 dark:border-white/5 px-2 pb-1">
               <label className="flex items-center justify-between cursor-pointer group">
                 <div className="flex items-center gap-2">
                   <Zap size={15} className="text-amber-500" />
                   <span className="text-xs font-medium text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300">Extended thinking</span>
                 </div>
-                <div 
+                <div
                   onClick={() => setExtendedThinking(!extendedThinking)}
                   className={`relative w-8 h-4.5 rounded-full transition-colors ${extendedThinking ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'}`}
                 >
@@ -196,25 +195,24 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
 
           {/* Model Selector Pill */}
           <div className="absolute right-14 bottom-3 flex items-center">
-             <button
+            <button
               type="button"
               onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
               className="group flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/5 shadow-sm"
-             >
-               <currentModel.icon size={14} className={currentModel.color} />
-               <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{currentModel.name}</span>
-               <ChevronDown size={14} className="text-gray-400 dark:text-gray-500" />
-             </button>
+            >
+              <currentModel.icon size={14} className={currentModel.color} />
+              <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{currentModel.name}</span>
+              <ChevronDown size={14} className="text-gray-400 dark:text-gray-500" />
+            </button>
           </div>
 
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className={`flex h-9 w-9 shrink-0 mb-1.5 items-center justify-center rounded-full transition-all ${
-              input.trim() && !isLoading
-                ? "bg-black dark:bg-white text-white dark:text-black shadow-lg hover:scale-105 active:scale-95"
-                : "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 opacity-50 cursor-not-allowed"
-            }`}
+            className={`flex h-9 w-9 shrink-0 mb-1.5 items-center justify-center rounded-full transition-all ${input.trim() && !isLoading
+              ? "bg-black dark:bg-white text-white dark:text-black shadow-lg hover:scale-105 active:scale-95"
+              : "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 opacity-50 cursor-not-allowed"
+              }`}
           >
             <CircleArrowUp size={20} />
           </button>
@@ -224,3 +222,55 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
   );
 };
 
+
+
+
+//import React, { useState, useRef } from 'react';
+
+export const VoiceInterface = () => {
+  const [isListening, setIsListening] = useState(false);
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const audioContext = useRef<AudioContext | null>(null);
+
+  const startListening = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setIsListening(true);
+
+      // 1. Initialize Audio Context for Visualizers
+      audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const source = audioContext.current.createMediaStreamSource(stream);
+      const analyzer = audioContext.current.createAnalyser();
+      source.connect(analyzer);
+
+      // 2. Setup MediaRecorder for Deepgram
+      mediaRecorder.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+      mediaRecorder.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          // Send this blob to your Socket.io server here
+          // socket.emit('audio-stream', event.data);
+        }
+      };
+
+      mediaRecorder.current.start(250); // Send chunks every 250ms
+    } catch (err) {
+      console.error("Microphone access denied", err);
+    }
+  };
+
+  const stopListening = () => {
+    mediaRecorder.current?.stop();
+    setIsListening(false);
+  };
+
+  return (
+    <button
+      onClick={isListening ? stopListening : startListening}
+      className={`p-3 rounded-full ${isListening ? 'bg-red-500 animate-pulse' : 'bg-zinc-800'}`}
+    >
+      {/* Mic Icon Here */}
+      {isListening ? "Listening..." : "Start Voice"}
+    </button>
+  );
+};
