@@ -65,14 +65,15 @@ export const Message = ({ message }: MessageProps) => {
             "rounded-2xl p-4 text-sm md:text-base shadow-sm break-words",
             message.isError
               ? "bg-red-500 text-white rounded-tl-none border border-red-400"
-              : isAssistant 
-                ? "bg-white dark:bg-[#303030] text-gray-900 dark:text-gray-100 rounded-tl-none border border-gray-100 dark:border-gray-700" 
+              : isAssistant
+                ? "bg-white dark:bg-[#303030] text-gray-900 dark:text-gray-100 rounded-tl-none border border-gray-100 dark:border-gray-700"
                 : "bg-blue-200 rounded-tr-none"
           )}>
             <div className={cn(
               "prose prose-sm md:prose-base max-w-none prose-p:leading-relaxed prose-pre:bg-gray-800 prose-pre:text-gray-100",
-              isAssistant 
-                ? "dark:prose-invert text-gray-900 dark:text-gray-100" 
+              "whitespace-pre-wrap", // CRITICAL FOR STREAMING: Preserves formatting during live updates
+              isAssistant
+                ? "dark:prose-invert text-gray-900 dark:text-gray-100"
                 : "text-black prose-p:text-black prose-strong:text-black prose-headings:text-black"
             )}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>

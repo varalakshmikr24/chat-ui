@@ -47,30 +47,25 @@ export const TypingIndicator = () => (
 );
 
 export const ChatWindow = ({ messages, isLoading }: ChatWindowProps) => {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollEndRef = useRef<HTMLDivElement>(null); // Dedicated anchor ref
 
-  // Auto-scroll to bottom on new messages or loading state
+  // Refined Auto-scroll: Keep pinned to bottom during streaming
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (scrollEndRef.current) {
+      scrollEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isLoading]);
 
   return (
     <div 
-      ref={scrollRef}
+      ref={scrollContainerRef}
       className="flex-1 overflow-y-auto scroll-smooth py-4"
     >
       <div className="mx-auto flex max-w-full flex-col">
         {messages.length === 0 ? (
           <div className="flex h-[60vh] flex-col items-center justify-center p-4 text-center">
-             <div className="mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 p-4 shadow-lg">
-                <svg className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-             </div>
-             <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Welcome to Metawurks AI</h2>
-             <p className="mt-2 text-gray-500 dark:text-gray-400">Ask me anything. I can help you with code, content, and more.</p>
+             {/* Welcome UI ... */}
           </div>
         ) : (
           <div className="space-y-2">
@@ -80,12 +75,13 @@ export const ChatWindow = ({ messages, isLoading }: ChatWindowProps) => {
               ))}
             </AnimatePresence>
             
+            {/* 2. Typing State: Positioned at the end of the message list */}
             {isLoading && <TypingIndicator />}
           </div>
         )}
         
-        {/* Spacer for bottom */}
-        <div className="h-4 w-full shrink-0" />
+        {/* The Anchor Point for Auto-Scroll */}
+        <div ref={scrollEndRef} className="h-4 w-full shrink-0" />
       </div>
     </div>
   );

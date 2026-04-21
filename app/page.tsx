@@ -37,7 +37,7 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [chatMode, setChatMode] = useState<'demo' | 'gemini' | 'llama'>('gemini');
   const [isLimitExceeded, setIsLimitExceeded] = useState(false);
-  
+
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -65,18 +65,18 @@ export default function Home() {
   const handleSendMessage = async (content: string, questionId?: string) => {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       role: 'user',
       content,
       timestamp,
     };
 
     let activeId = currentChatId;
-    let updatedChats = [...chats];
+    let initialUpdatedChats: ChatSession[] = [];
 
     // Create new chat if none active
     if (!activeId) {
-      activeId = Date.now().toString();
+      activeId = crypto.randomUUID();
       const newChat: ChatSession = {
         id: activeId,
         title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
@@ -84,12 +84,12 @@ export default function Home() {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      updatedChats = [newChat, ...updatedChats];
-      setChats(updatedChats);
+      initialUpdatedChats = [newChat, ...chats];
+      setChats(initialUpdatedChats);
       setCurrentChatId(activeId);
     } else {
       // Add message to existing chat
-      updatedChats = updatedChats.map(chat => {
+      initialUpdatedChats = chats.map(chat => {
         if (chat.id === activeId) {
           return {
             ...chat,
@@ -99,18 +99,17 @@ export default function Home() {
         }
         return chat;
       }).sort((a, b) => b.updatedAt - a.updatedAt);
-      setChats(updatedChats);
+      setChats(initialUpdatedChats);
     }
 
-    setMessages(updatedChats.find(c => c.id === activeId)?.messages || []);
+    setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
     try {
       let aiMessageContent = "";
-      let aiMessageId = Date.now().toString();
+      let aiMessageId = crypto.randomUUID();
 
       if (chatMode === 'demo') {
-        // --- EXISTING MOCK LOGIC ---
         const QUESTION_MAP: Record<string, string> = {
           'chat_q1': "The Next.js App Router (introduced in version 13) uses React Server Components to simplify data fetching and improve performance by reducing the amount of JavaScript sent to the client.",
           'chat_q2': "In this application, we use React's `useState` for local message state and `next-themes` for global theme management. For larger apps, tools like Zustand or Redux are often preferred.",
@@ -154,27 +153,37 @@ export default function Home() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: userMessage.content,
-            history: updatedChats.find(c => c.id === activeId)?.messages.slice(0, -1) || [],
-            model: chatMode
+            history: initialUpdatedChats.find(c => c.id === activeId)?.messages.slice(0, -1) || [],
+            model: chatMode,
+            threadId: activeId
           }),
         });
 
+        // 1. Check response.ok before parsing
         if (!response.ok) {
-           const errData = await response.json().catch(() => ({}));
-           
-           // Detect 429 Quota Exceeded
-           if (response.status === 429 || errData.error?.includes('429') || errData.error?.includes('quota') || errData.error?.includes('limit')) {
-             setIsLimitExceeded(true);
-             setChatMode('demo');
-             throw new Error(`${chatMode.toUpperCase()} Limit Reached. Automatically switched to Demo Mode.`);
-           }
-           
-           throw new Error(errData.error || 'Failed to fetch response');
+          // 2. Handle 429 errors specifically
+          if (response.status === 429) {
+            setIsLimitExceeded(true);
+            setChatMode('demo');
+            throw new Error('Rate limit exceeded. Please wait a minute.');
+          }
+
+          let errorMsg = 'Failed to fetch response';
+          try {
+            // Attempt to parse JSON error message once
+            const errData = await response.json();
+            errorMsg = errData.error || errorMsg;
+          } catch (e) {
+            // If body is not JSON, fall back to status text
+            errorMsg = response.statusText || errorMsg;
+          }
+          throw new Error(errorMsg);
         }
-        
+
+        // 3. Parse JSON body exactly once for successful response
         const aiMessageData = await response.json();
         aiMessageContent = aiMessageData.content;
-        aiMessageId = aiMessageData.id;
+        aiMessageId = aiMessageData.id || crypto.randomUUID();
       }
 
       const aiMessage: Message = {
@@ -195,18 +204,27 @@ export default function Home() {
         }
         return chat;
       }).sort((a, b) => b.updatedAt - a.updatedAt));
-      
+
       setMessages(prev => [...prev, aiMessage]);
     } catch (error: any) {
       console.error('Error sending message:', error);
-      const errorMessage: Message = {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: `Error: ${error.message || 'Something went wrong. Please try again.'}`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isError: true
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      
+      setMessages(prev => {
+        // Prevents error spamming - check if last message is already an error
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage?.isError && lastMessage.content.includes(error.message)) {
+          return prev;
+        }
+
+        const errorMessage: Message = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `Error: ${error.message || 'Something went wrong. Please try again.'}`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isError: true
+        };
+        return [...prev, errorMessage];
+      });
     } finally {
       setIsLoading(false);
     }
@@ -235,7 +253,7 @@ export default function Home() {
 
   const handleClearCurrent = () => {
     if (currentChatId) {
-      setChats(prev => prev.map(chat => 
+      setChats(prev => prev.map(chat =>
         chat.id === currentChatId ? { ...chat, messages: [], updatedAt: Date.now() } : chat
       ));
     }
@@ -247,24 +265,24 @@ export default function Home() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-white dark:bg-[#212121] text-gray-900 dark:text-gray-100 transition-colors duration-300">
-        <Sidebar
-          chats={chats}
-          activeId={currentChatId}
-          onNewChat={handleNewChat}
-          onSelectChat={handleSelectChat}
-          onDeleteChat={handleDeleteChat}
-          onClearChat={handleClearCurrent}
-          isOpen={isSidebarOpen}
-          setIsOpen={setIsSidebarOpen}
-          chatMode={chatMode}
-          setChatMode={(mode) => {
-            setChatMode(mode as 'demo' | 'gemini' | 'llama');
-            if (isLimitExceeded) setIsLimitExceeded(false); // Reset on manual toggle
-          }}
-          isLimitExceeded={isLimitExceeded}
-        />
+      <Sidebar
+        chats={chats}
+        activeId={currentChatId}
+        onNewChat={handleNewChat}
+        onSelectChat={handleSelectChat}
+        onDeleteChat={handleDeleteChat}
+        onClearChat={handleClearCurrent}
+        isOpen={isSidebarOpen}
+        setIsOpen={setIsSidebarOpen}
+        chatMode={chatMode}
+        setChatMode={(mode) => {
+          setChatMode(mode as 'demo' | 'gemini' | 'llama');
+          if (isLimitExceeded) setIsLimitExceeded(false); // Reset on manual toggle
+        }}
+        isLimitExceeded={isLimitExceeded}
+      />
 
-      <main 
+      <main
         className={cn(
           "relative flex flex-1 flex-col overflow-hidden transition-all duration-300",
           isSidebarOpen ? "lg:ml-64" : "lg:ml-[60px]"
@@ -273,14 +291,14 @@ export default function Home() {
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white/80 px-4 backdrop-blur dark:border-gray-800 dark:bg-[#212121]/80 z-20">
           <div className="flex items-center gap-2">
             {!isSidebarOpen && (
-               <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
-                  <div className="h-6 w-6 rounded bg-blue-600 flex items-center justify-center shrink-0">
-                    <span className="text-white text-[10px] font-bold">M</span>
-                  </div>
-                  <h1 className="text-sm font-semibold md:text-base">Metawurks AI</h1>
-               </div>
+              <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                <div className="h-6 w-6 rounded bg-blue-600 flex items-center justify-center shrink-0">
+                  <span className="text-white text-[10px] font-bold">M</span>
+                </div>
+                <h1 className="text-sm font-semibold md:text-base">Metawurks AI</h1>
+              </div>
             )}
-            
+
             <div className="flex items-center gap-2 ml-2">
               {chatMode === 'demo' ? (
                 <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800 animate-pulse">
@@ -289,7 +307,7 @@ export default function Home() {
               ) : (
                 <span className={cn(
                   "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border",
-                  chatMode === 'gemini' 
+                  chatMode === 'gemini'
                     ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
                     : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800"
                 )}>
@@ -319,9 +337,9 @@ export default function Home() {
         <ChatWindow messages={messages} isLoading={isLoading} />
 
         <div className="shrink-0 pb-4 md:pb-6">
-          <InputArea 
-            onSendMessage={handleSendMessage} 
-            isLoading={isLoading} 
+          <InputArea
+            onSendMessage={handleSendMessage}
+            isLoading={isLoading}
             chatMode={chatMode}
             setChatMode={setChatMode}
           />

@@ -31,6 +31,7 @@ interface SidebarProps {
   chatMode: 'demo' | 'gemini' | 'llama';
   setChatMode: (mode: 'demo' | 'gemini' | 'llama') => void;
   isLimitExceeded?: boolean;
+  isLoading?: boolean;
 }
 
 export const Sidebar = ({ 
@@ -44,7 +45,8 @@ export const Sidebar = ({
   setIsOpen,
   chatMode,
   setChatMode,
-  isLimitExceeded
+  isLimitExceeded,
+  isLoading
 }: SidebarProps) => {
 
   return (
@@ -105,13 +107,21 @@ export const Sidebar = ({
         </div>
 
         {/* Scrollable Recents History */}
-        <ChatHistoryList 
-          chats={chats}
-          activeId={activeId}
-          onSelectChat={onSelectChat}
-          onDeleteChat={onDeleteChat}
-          isOpen={isOpen}
-        />
+        {isLoading ? (
+          <div className="flex-1 px-3 py-4 space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-10 w-full animate-pulse rounded-lg bg-gray-100 dark:bg-white/5" />
+            ))}
+          </div>
+        ) : (
+          <ChatHistoryList 
+            chats={chats}
+            activeId={activeId}
+            onSelectChat={onSelectChat}
+            onDeleteChat={onDeleteChat}
+            isOpen={isOpen}
+          />
+        )}
 
         {/* Floating Icons for collapsed view */}
         {!isOpen && chats.length > 0 && (
