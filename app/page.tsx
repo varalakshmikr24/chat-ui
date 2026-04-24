@@ -27,6 +27,8 @@ interface ChatSession {
   messages: Message[];
   createdAt: number;
   updatedAt: number;
+  isPinned?: boolean;
+  isArchived?: boolean;
 }
 
 export default function Home() {
@@ -98,7 +100,11 @@ export default function Home() {
           };
         }
         return chat;
-      }).sort((a, b) => b.updatedAt - a.updatedAt);
+      }).sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.updatedAt - a.updatedAt;
+      });
       setChats(initialUpdatedChats);
     }
 
@@ -163,7 +169,11 @@ export default function Home() {
             };
           }
           return chat;
-        }).sort((a, b) => b.updatedAt - a.updatedAt));
+        }).sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1;
+          if (!a.isPinned && b.isPinned) return 1;
+          return b.updatedAt - a.updatedAt;
+        }));
 
         setMessages(prev => [...prev, aiMessage]);
       } else {
@@ -231,7 +241,11 @@ export default function Home() {
               };
             }
             return chat;
-          }).sort((a, b) => b.updatedAt - a.updatedAt));
+          }).sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return b.updatedAt - a.updatedAt;
+          }));
         }
       }
     } catch (err: any) {
@@ -293,6 +307,65 @@ export default function Home() {
     }
   };
 
+  const handleRenameChat = async (id: string, newTitle: string) => {
+    try {
+      // Optimistic update
+      setChats(prev => prev.map(chat => 
+        chat.id === id ? { ...chat, title: newTitle, updatedAt: Date.now() } : chat
+      ).sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.updatedAt - a.updatedAt;
+      }));
+    } catch (error) {
+      console.error("Failed to rename chat:", error);
+    }
+  };
+
+  const handlePinChat = (id: string) => {
+    setChats(prev => prev.map(chat => 
+      chat.id === id ? { ...chat, isPinned: !chat.isPinned } : chat
+    ).sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return b.updatedAt - a.updatedAt;
+    }));
+  };
+
+  const handleArchiveChat = (id: string) => {
+    setChats(prev => prev.map(chat => 
+      chat.id === id ? { ...chat, isArchived: true } : chat
+    ));
+    if (currentChatId === id) {
+      handleNewChat();
+    }
+  };
+
+  const handleShareChat = async (id: string) => {
+    const chat = chats.find(c => c.id === id);
+    if (!chat) return;
+
+    const shareData = {
+      title: chat.title,
+      text: `Check out this chat session: ${chat.title}`,
+      url: window.location.origin + (id ? `/chat/${id}` : ''), // Fallback URL
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+        // Using a simple toast or alert logic here
+        console.log("Copied to clipboard");
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error("Error sharing:", err);
+      }
+    }
+  };
+
   const handleClearCurrent = () => {
     if (currentChatId) {
       setChats(prev => prev.map(chat =>
@@ -313,6 +386,10 @@ export default function Home() {
         onNewChat={handleNewChat}
         onSelectChat={handleSelectChat}
         onDeleteChat={handleDeleteChat}
+        onRenameChat={handleRenameChat}
+        onPinChat={handlePinChat}
+        onArchiveChat={handleArchiveChat}
+        onShareChat={handleShareChat}
         onClearChat={handleClearCurrent}
         isOpen={isSidebarOpen}
         setIsOpen={setIsSidebarOpen}

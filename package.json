@@ -12,6 +12,7 @@
     "@deepgram/sdk": "^5.0.0",
     "@google/genai": "^1.50.0",
     "@google/generative-ai": "^0.24.1",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@tailwindcss/typography": "^0.5.19",
     "@types/dompurify": "^3.0.5",
     "bcryptjs": "^3.0.3",
