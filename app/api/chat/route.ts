@@ -32,16 +32,14 @@ export async function POST(req: Request) {
           threadId, userId, role: 'user', content: message,
         });
 
-        // AUTOMATIC RENAMING: If this is the first message (title is still default), rename it
         const currentThread = await Thread.findById(threadId);
         if (currentThread && currentThread.title === 'New Conversation') {
           const newTitle = message.slice(0, 40) + (message.length > 40 ? '...' : '');
-          await Thread.findByIdAndUpdate(threadId, { 
+          await Thread.findByIdAndUpdate(threadId, {
             title: newTitle,
-            updatedAt: new Date() 
+            updatedAt: new Date()
           });
         } else {
-          // Just update the timestamp for existing threads
           await Thread.findByIdAndUpdate(threadId, { updatedAt: new Date() });
         }
       } catch (err) {
@@ -65,9 +63,9 @@ export async function POST(req: Request) {
         try {
           if (modelName === 'llama') {
             const groqStream = await groq.chat.completions.create({
-              messages: messagesForAI.map(m => ({ 
-                role: m.role === 'model' ? 'assistant' : 'user', 
-                content: m.parts[0].text 
+              messages: messagesForAI.map(m => ({
+                role: m.role === 'model' ? 'assistant' : 'user',
+                content: m.parts[0].text
               })),
               model: "llama-3.1-8b-instant",
               stream: true,
@@ -81,6 +79,7 @@ export async function POST(req: Request) {
               }
             }
           } else {
+            // GEMINI FLOW
             const modelInstance = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             const result = await modelInstance.generateContentStream({ contents: messagesForAI });
 
@@ -95,13 +94,20 @@ export async function POST(req: Request) {
 
           // 3. PERSIST ASSISTANT MESSAGE ONCE FINISHED
           if (isValidThreadId && userId && fullResponse.trim()) {
-             await Message.create({
-               threadId, userId, role: 'assistant', content: fullResponse.trim(),
-             });
+            await Message.create({
+              threadId, userId, role: 'assistant', content: fullResponse.trim(),
+            });
           }
         } catch (err: any) {
-          console.error("Streaming error:", err);
-          controller.error(err);
+          console.error("Streaming error caught:", err);
+
+          let friendlyError = "An error occurred during streaming.";
+          if (err.status === 429 || err.message?.includes("429")) {
+            friendlyError = "Quota Exceeded: Your daily limit is reached. Please try again tomorrow.";
+          }
+
+          // Enqueue the error as a JSON-parsable string to avoid "Unexpected token E"
+          controller.enqueue(encoder.encode(JSON.stringify({ error: friendlyError })));
         } finally {
           controller.close();
         }
@@ -109,14 +115,14 @@ export async function POST(req: Request) {
     });
 
     return new Response(stream, {
-        headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
-            'Transfer-Encoding': 'chunked',
-        },
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Transfer-Encoding': 'chunked',
+      },
     });
 
   } catch (error: any) {
-    console.error('API Error:', error);
+    console.error('Initial API Error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal Server Error' },
       { status: error.status || 500 }

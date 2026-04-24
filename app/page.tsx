@@ -73,8 +73,9 @@ export default function Home() {
 
     let activeId = currentChatId;
     let initialUpdatedChats: ChatSession[] = [];
+    let assistantMessageId: string | null = null; // Track the placeholder ID
 
-    // Create new chat if none active
+    // 1. CHAT SESSION LOGIC
     if (!activeId) {
       activeId = crypto.randomUUID();
       const newChat: ChatSession = {
@@ -88,7 +89,6 @@ export default function Home() {
       setChats(initialUpdatedChats);
       setCurrentChatId(activeId);
     } else {
-      // Add message to existing chat
       initialUpdatedChats = chats.map(chat => {
         if (chat.id === activeId) {
           return {
@@ -102,13 +102,12 @@ export default function Home() {
       setChats(initialUpdatedChats);
     }
 
+    // 2. UPDATE UI STATE (Only call these once)
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
+    // 3. API CALL & ERROR HANDLING
     try {
-      let aiMessageContent = "";
-      let aiMessageId = crypto.randomUUID();
-
       if (chatMode === 'demo') {
         const QUESTION_MAP: Record<string, string> = {
           'chat_q1': "The Next.js App Router (introduced in version 13) uses React Server Components to simplify data fetching and improve performance by reducing the amount of JavaScript sent to the client.",
@@ -139,6 +138,7 @@ export default function Home() {
         const userContent = content.trim().toLowerCase();
         await new Promise((resolve) => setTimeout(resolve, 1500));
 
+        let aiMessageContent = "";
         if (questionId && QUESTION_MAP[questionId]) {
           aiMessageContent = QUESTION_MAP[questionId];
         } else if (TEXT_TO_ID_MAP[userContent]) {
@@ -146,84 +146,126 @@ export default function Home() {
         } else {
           aiMessageContent = "That's an interesting question. I'm currently set up to provide detailed answers to preset professional questions in Demo Mode, but I can tell you that Metawurks AI is designed for enterprise-grade performance and scalability.";
         }
+
+        const aiMessage: Message = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: aiMessageContent,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+
+        setChats(prev => prev.map(chat => {
+          if (chat.id === activeId) {
+            return {
+              ...chat,
+              messages: [...chat.messages, aiMessage],
+              updatedAt: Date.now()
+            };
+          }
+          return chat;
+        }).sort((a, b) => b.updatedAt - a.updatedAt));
+
+        setMessages(prev => [...prev, aiMessage]);
       } else {
-        // --- REAL API CALL ---
+        // LIVE STREAMING MODE
         const response = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            message: userMessage.content,
-            history: initialUpdatedChats.find(c => c.id === activeId)?.messages.slice(0, -1) || [],
-            model: chatMode,
-            threadId: activeId
+            message: content,
+            history: initialUpdatedChats.find(c => c.id === activeId)?.messages.slice(-10) || [],
+            threadId: activeId,
+            model: chatMode
           }),
         });
 
-        // 1. Check response.ok before parsing
         if (!response.ok) {
-          // 2. Handle 429 errors specifically
-          if (response.status === 429) {
-            setIsLimitExceeded(true);
-            setChatMode('demo');
-            throw new Error('Rate limit exceeded. Please wait a minute.');
-          }
-
-          let errorMsg = 'Failed to fetch response';
-          try {
-            // Attempt to parse JSON error message once
-            const errData = await response.json();
-            errorMsg = errData.error || errorMsg;
-          } catch (e) {
-            // If body is not JSON, fall back to status text
-            errorMsg = response.statusText || errorMsg;
-          }
-          throw new Error(errorMsg);
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Server error: ${response.status}`);
         }
 
-        // 3. Parse JSON body exactly once for successful response
-        const aiMessageData = await response.json();
-        aiMessageContent = aiMessageData.content;
-        aiMessageId = aiMessageData.id || crypto.randomUUID();
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let assistantMessageContent = "";
+
+        assistantMessageId = crypto.randomUUID();
+        setMessages(prev => [...prev, {
+          id: assistantMessageId!,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }]);
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+
+            if (chunk.startsWith('{"error":')) {
+              const errorObj = JSON.parse(chunk);
+              throw new Error(errorObj.error);
+            }
+
+            assistantMessageContent += chunk;
+
+            setMessages(prev => prev.map(msg =>
+              msg.id === assistantMessageId ? { ...msg, content: assistantMessageContent } : msg
+            ));
+          }
+
+          // Update final chat history with the full content
+          setChats(prev => prev.map(chat => {
+            if (chat.id === activeId) {
+              const fullAssistantMessage: Message = {
+                id: assistantMessageId!,
+                role: 'assistant',
+                content: assistantMessageContent,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              };
+              return {
+                ...chat,
+                messages: [...chat.messages, fullAssistantMessage],
+                updatedAt: Date.now()
+              };
+            }
+            return chat;
+          }).sort((a, b) => b.updatedAt - a.updatedAt));
+        }
+      }
+    } catch (err: any) {
+      console.error("Chat Error:", err);
+      const errorMessage = err.message || "Failed to connect to server.";
+
+      if (errorMessage.includes("Quota Exceeded") || errorMessage.includes("429")) {
+        setIsLimitExceeded(true);
+        setChatMode('demo');
       }
 
-      const aiMessage: Message = {
-        id: aiMessageId,
-        role: 'assistant',
-        content: aiMessageContent,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-
-      // Update chats with AI response
-      setChats(prev => prev.map(chat => {
-        if (chat.id === activeId) {
-          return {
-            ...chat,
-            messages: [...chat.messages, aiMessage],
-            updatedAt: Date.now()
-          };
-        }
-        return chat;
-      }).sort((a, b) => b.updatedAt - a.updatedAt));
-
-      setMessages(prev => [...prev, aiMessage]);
-    } catch (error: any) {
-      console.error('Error sending message:', error);
-      
       setMessages(prev => {
-        // Prevents error spamming - check if last message is already an error
-        const lastMessage = prev[prev.length - 1];
-        if (lastMessage?.isError && lastMessage.content.includes(error.message)) {
-          return prev;
+        // If we have a placeholder ID, find it and update it
+        if (assistantMessageId) {
+          return prev.map(msg =>
+            msg.id === assistantMessageId
+              ? {
+                ...msg,
+                content: `Error: ${errorMessage}`,
+                isError: true
+              }
+              : msg
+          );
         }
 
-        const errorMessage: Message = {
+        // Otherwise, add a new error message
+        const errorAssistantMessage: Message = {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `Error: ${error.message || 'Something went wrong. Please try again.'}`,
+          content: `Error: ${errorMessage}`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           isError: true
         };
-        return [...prev, errorMessage];
+        return [...prev, errorAssistantMessage];
       });
     } finally {
       setIsLoading(false);
@@ -277,7 +319,7 @@ export default function Home() {
         chatMode={chatMode}
         setChatMode={(mode) => {
           setChatMode(mode as 'demo' | 'gemini' | 'llama');
-          if (isLimitExceeded) setIsLimitExceeded(false); // Reset on manual toggle
+          if (isLimitExceeded) setIsLimitExceeded(false);
         }}
         isLimitExceeded={isLimitExceeded}
       />
