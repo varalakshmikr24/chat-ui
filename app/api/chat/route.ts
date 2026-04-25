@@ -6,7 +6,7 @@ import { auth } from '@/auth';
 import connectDB from '@/lib/mongodb';
 import Message from '@/models/Message';
 import Thread from '@/models/Thread';
-import { getRealTimeData } from '@/lib/tavily'; // Import your Tavily utility
+import { getRealTimeData } from '@/lib/tavily';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const groq = new OpenAI({
@@ -14,19 +14,24 @@ const groq = new OpenAI({
   apiKey: process.env.GROQ_API_KEY || '',
 });
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
-  let modelName = 'unknown';
+  console.log("Chat API POST request received");
   try {
     const session = await auth();
-    const { message, history, model, threadId } = await req.json();
+    const body = await req.json();
+    const { message, history, model, threadId } = body;
     const userId = session?.user ? (session.user as any).id : null;
-    modelName = model || 'gemini';
+    const modelName = model || 'gemini';
+
+    console.log("User ID:", userId, "Model:", modelName);
 
     await connectDB();
 
     const isValidThreadId = threadId && mongoose.Types.ObjectId.isValid(threadId);
 
-    // 1. SAVE USER MESSAGE IMMEDIATELY
+    // 1. SAVE USER MESSAGE
     if (isValidThreadId && userId) {
       try {
         await Message.create({
@@ -48,11 +53,16 @@ export async function POST(req: Request) {
       }
     }
 
-    // --- REAL-TIME DATA FETCHING (TAVILY) ---
-    const searchData = await getRealTimeData(message);
-    const liveContext = searchData?.answer ||
-      searchData?.results?.map((r: any) => r.content).join("\n") ||
-      "No real-time data found.";
+    // --- REAL-TIME DATA FETCHING ---
+    let liveContext = "No real-time data found.";
+    try {
+        const searchData = await getRealTimeData(message);
+        if (searchData) {
+            liveContext = searchData.answer || searchData.results?.map((r: any) => r.content).join("\n") || liveContext;
+        }
+    } catch (searchErr) {
+        console.error("Search error:", searchErr);
+    }
 
     const systemPrompt = `
       You are a helpful AI assistant. 
@@ -63,7 +73,6 @@ export async function POST(req: Request) {
       ${liveContext}
     `;
 
-    // Prepare messages for Gemini
     const messagesForGemini = [
       { role: 'user', parts: [{ text: systemPrompt }] },
       { role: 'model', parts: [{ text: "Understood. I will use that real-time data for context." }] },
@@ -74,7 +83,6 @@ export async function POST(req: Request) {
       { role: 'user', parts: [{ text: message }] }
     ];
 
-    // Prepare messages for Groq (Llama)
     const messagesForGroq = [
       { role: 'system', content: systemPrompt },
       ...(history || []).map((msg: any) => ({
@@ -86,11 +94,9 @@ export async function POST(req: Request) {
 
     const encoder = new TextEncoder();
 
-    // 2. CREATE READABLE STREAM
     const stream = new ReadableStream({
       async start(controller) {
         let fullResponse = "";
-
         try {
           if (modelName === 'llama') {
             const groqStream = await groq.chat.completions.create({
@@ -107,7 +113,6 @@ export async function POST(req: Request) {
               }
             }
           } else {
-            // GEMINI FLOW
             const modelInstance = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             const result = await modelInstance.generateContentStream({ contents: messagesForGemini });
 
@@ -120,7 +125,6 @@ export async function POST(req: Request) {
             }
           }
 
-          // 3. PERSIST ASSISTANT MESSAGE ONCE FINISHED
           if (isValidThreadId && userId && fullResponse.trim()) {
             await Message.create({
               threadId, userId, role: 'assistant', content: fullResponse.trim(),
@@ -128,12 +132,10 @@ export async function POST(req: Request) {
           }
         } catch (err: any) {
           console.error("Streaming error caught:", err);
-
           let friendlyError = "An error occurred during streaming.";
           if (err.status === 429 || err.message?.includes("429")) {
             friendlyError = "Quota Exceeded: Your daily limit is reached. Please try again tomorrow.";
           }
-
           controller.enqueue(encoder.encode(JSON.stringify({ error: friendlyError })));
         } finally {
           controller.close();
@@ -144,7 +146,6 @@ export async function POST(req: Request) {
     return new Response(stream, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
-        'Transfer-Encoding': 'chunked',
       },
     });
 
