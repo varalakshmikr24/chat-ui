@@ -6,6 +6,7 @@ import { auth } from '@/auth';
 import connectDB from '@/lib/mongodb';
 import Message from '@/models/Message';
 import Thread from '@/models/Thread';
+import { getRealTimeData } from '@/lib/tavily'; // Import your Tavily utility
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const groq = new OpenAI({
@@ -47,11 +48,41 @@ export async function POST(req: Request) {
       }
     }
 
-    const messagesForAI = (history || []).map((msg: any) => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
-    }));
-    messagesForAI.push({ role: 'user', parts: [{ text: message }] });
+    // --- REAL-TIME DATA FETCHING (TAVILY) ---
+    const searchData = await getRealTimeData(message);
+    const liveContext = searchData?.answer ||
+      searchData?.results?.map((r: any) => r.content).join("\n") ||
+      "No real-time data found.";
+
+    const systemPrompt = `
+      You are a helpful AI assistant. 
+      Today's Date: ${new Date().toLocaleDateString()}
+      Use the following real-time information to answer the user's request accurately.
+      
+      REAL-TIME DATA:
+      ${liveContext}
+    `;
+
+    // Prepare messages for Gemini
+    const messagesForGemini = [
+      { role: 'user', parts: [{ text: systemPrompt }] },
+      { role: 'model', parts: [{ text: "Understood. I will use that real-time data for context." }] },
+      ...(history || []).map((msg: any) => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+      })),
+      { role: 'user', parts: [{ text: message }] }
+    ];
+
+    // Prepare messages for Groq (Llama)
+    const messagesForGroq = [
+      { role: 'system', content: systemPrompt },
+      ...(history || []).map((msg: any) => ({
+        role: msg.role === 'assistant' ? 'assistant' : 'user',
+        content: msg.content
+      })),
+      { role: 'user', content: message }
+    ];
 
     const encoder = new TextEncoder();
 
@@ -63,10 +94,7 @@ export async function POST(req: Request) {
         try {
           if (modelName === 'llama') {
             const groqStream = await groq.chat.completions.create({
-              messages: messagesForAI.map(m => ({
-                role: m.role === 'model' ? 'assistant' : 'user',
-                content: m.parts[0].text
-              })),
+              messages: messagesForGroq,
               model: "llama-3.1-8b-instant",
               stream: true,
             });
@@ -81,7 +109,7 @@ export async function POST(req: Request) {
           } else {
             // GEMINI FLOW
             const modelInstance = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-            const result = await modelInstance.generateContentStream({ contents: messagesForAI });
+            const result = await modelInstance.generateContentStream({ contents: messagesForGemini });
 
             for await (const chunk of result.stream) {
               const chunkText = chunk.text();
@@ -106,7 +134,6 @@ export async function POST(req: Request) {
             friendlyError = "Quota Exceeded: Your daily limit is reached. Please try again tomorrow.";
           }
 
-          // Enqueue the error as a JSON-parsable string to avoid "Unexpected token E"
           controller.enqueue(encoder.encode(JSON.stringify({ error: friendlyError })));
         } finally {
           controller.close();
