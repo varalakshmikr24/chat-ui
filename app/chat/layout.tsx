@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { useRouter, useParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Sun, Moon } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { clsx, type ClassValue } from 'clsx';
@@ -18,6 +19,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [chatMode, setChatMode] = useState<'demo' | 'gemini' | 'llama'>('gemini');
   
+  const { data: session, status } = useSession();
   const router = useRouter();
   const params = useParams();
   const activeThreadId = params.threadId as string;
@@ -27,8 +29,10 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     setMounted(true);
-    fetchThreads();
-  }, []);
+    if (status === 'authenticated') {
+      fetchThreads();
+    }
+  }, [status, session?.user?.id, activeThreadId]);
 
   const fetchThreads = async () => {
     try {
@@ -45,22 +49,8 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const handleNewChat = async () => {
-    // Optimistic UI could go here, but let's do simple first
-    try {
-        const res = await fetch('/api/threads', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: 'New Conversation' }),
-        });
-        if (res.ok) {
-            const newThread = await res.json();
-            setThreads(prev => [newThread, ...prev]);
-            router.push(`/chat/${newThread._id}`);
-        }
-    } catch (error) {
-        console.error('Failed to create thread:', error);
-    }
+  const handleNewChat = () => {
+    router.push('/chat');
   };
 
   const handleSelectChat = (id: string) => {
@@ -69,7 +59,6 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 
   const handleDeleteChat = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    // For now just UI filter, actual delete API could be added
     setThreads(prev => prev.filter(t => t._id !== id));
     if (activeThreadId === id) {
         router.push('/chat');
@@ -97,8 +86,6 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
         onClearChat={() => {}}
         isOpen={isSidebarOpen}
         setIsOpen={setIsSidebarOpen}
-        chatMode={chatMode}
-        setChatMode={setChatMode}
         isLoading={isLoading}
       />
 

@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
+// Import your custom AuthProvider (which likely contains SessionProvider)
+
+
+import AuthProvider from "@/components/AuthProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -11,8 +15,6 @@ export const metadata: Metadata = {
   description: "Enterprise-grade Chat Interface built with Next.js",
 };
 
-import AuthProvider from "@/components/AuthProvider";
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -21,6 +23,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className} suppressHydrationWarning>
+        {/* AuthProvider handles the NextAuth session */}
         <AuthProvider>
           <ThemeProvider
             attribute="class"

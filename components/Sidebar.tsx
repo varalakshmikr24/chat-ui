@@ -1,7 +1,8 @@
 "use client";
 
-import React from 'react';
-import { Plus, PanelLeft, Trash2, X, MoreHorizontal } from 'lucide-react'; // Added MoreHorizontal
+import React, { useEffect, useState, useCallback } from 'react';
+import { Plus, PanelLeft, Trash2, LogIn, LogOut } from 'lucide-react';
+import { useSession, signIn, signOut } from "next-auth/react"; 
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { ChatHistoryList } from './ChatHistoryList';
@@ -22,27 +23,22 @@ interface ChatSession {
 }
 
 interface SidebarProps {
-  chats: ChatSession[];
   activeId: string | null;
   onNewChat: () => void;
   onSelectChat: (id: string) => void;
   onDeleteChat: (id: string, e: React.MouseEvent) => void;
-  // Add these new props for your menu actions
-  onRenameChat?: (id: string) => void;
+  onRenameChat?: (id: string, newTitle: string) => void;
   onPinChat?: (id: string) => void;
   onArchiveChat?: (id: string) => void;
   onShareChat?: (id: string) => void;
   onClearChat: () => void;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
-  chatMode: 'demo' | 'gemini' | 'llama';
-  setChatMode: (mode: 'demo' | 'gemini' | 'llama') => void;
-  isLimitExceeded?: boolean;
+  chats?: ChatSession[];
   isLoading?: boolean;
 }
 
 export const Sidebar = ({
-  chats,
   activeId,
   onNewChat,
   onSelectChat,
@@ -54,10 +50,43 @@ export const Sidebar = ({
   onClearChat,
   isOpen,
   setIsOpen,
-  isLoading
+  chats: propChats,
+  isLoading: propIsLoading,
 }: SidebarProps) => {
+  const { data: session, status } = useSession();
+  const [localChats, setLocalChats] = useState<ChatSession[]>([]);
+  const [localIsLoading, setLocalIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const [searchQuery, setSearchQuery] = React.useState("");
+  const chats = propChats || localChats;
+  const isLoading = propIsLoading !== undefined ? propIsLoading : localIsLoading;
+
+  // 1. Optimized Fetch Logic
+  const loadChats = useCallback(async () => {
+    if (status !== "authenticated" || propChats) return;
+    
+    setLocalIsLoading(true);
+    try {
+      const res = await fetch(`/api/chat?t=${Date.now()}`, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setLocalChats(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error("Failed to load history:", error);
+    } finally {
+      setLocalIsLoading(false);
+    }
+  }, [status, propChats]);
+
+  useEffect(() => {
+    loadChats();
+  }, [loadChats, status]);
+
   const filteredChats = chats
     .filter((chat) => !chat.isArchived)
     .filter((chat) =>
@@ -77,26 +106,26 @@ export const Sidebar = ({
         "fixed inset-y-0 left-0 z-50 flex flex-col bg-white dark:bg-[#171717] text-gray-900 dark:text-gray-100 border-r border-gray-200 dark:border-white/5 transition-all duration-300 h-full",
         isOpen ? "w-64" : "w-0 overflow-hidden lg:w-[60px]"
       )}>
-
+        {/* Header Section */}
         <div className="flex h-14 items-center px-3 shrink-0 gap-3">
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 transition-colors"
           >
             <PanelLeft size={20} className={cn(!isOpen && "rotate-180")} />
           </button>
 
-          <div className={cn(
-            "flex items-center gap-2 overflow-hidden transition-all duration-300",
-            isOpen ? "opacity-100 w-auto" : "opacity-0 w-0"
-          )}>
-            <div className="h-6 w-6 rounded bg-blue-600 flex items-center justify-center shrink-0">
-              <span className="text-white text-[10px] font-bold">M</span>
+          {isOpen && (
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded bg-blue-600 flex items-center justify-center">
+                <span className="text-white text-[10px] font-bold">M</span>
+              </div>
+              <span className="font-semibold text-sm">Metawurks AI</span>
             </div>
-            <span className="font-semibold text-sm whitespace-nowrap">Metawurks AI</span>
-          </div>
+          )}
         </div>
 
+        {/* New Chat Button */}
         <div className="px-3 pb-2 shrink-0">
           <button
             onClick={() => {
@@ -113,21 +142,21 @@ export const Sidebar = ({
           </button>
         </div>
 
+        {/* Search Bar */}
         {isOpen && (
           <div className="px-3 pb-2 shrink-0">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search chats..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg bg-gray-100 dark:bg-white/5 border border-transparent focus:border-blue-500 p-2 pl-3 text-sm outline-none transition-all"
-              />
-            </div>
+            <input
+              type="text"
+              placeholder="Search chats..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg bg-gray-100 dark:bg-white/5 border border-transparent focus:border-blue-500 p-2 pl-3 text-sm outline-none"
+            />
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto">
+        {/* Chat History List */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
           {isLoading ? (
             <div className="px-3 py-4 space-y-2">
               {[1, 2, 3].map((i) => (
@@ -136,7 +165,7 @@ export const Sidebar = ({
             </div>
           ) : (
             <ChatHistoryList
-              chats={filteredChats}
+              searchQuery={searchQuery}
               activeId={activeId}
               onSelectChat={onSelectChat}
               onDeleteChat={onDeleteChat}
@@ -149,27 +178,36 @@ export const Sidebar = ({
           )}
         </div>
 
+        {/* Bottom Navigation & User Profile */}
         <div className="mt-auto p-3 shrink-0 border-t border-gray-200 dark:border-white/5 space-y-1">
           {isOpen && (
             <button
               onClick={onClearChat}
-              className="flex items-center gap-3 w-full rounded-lg p-3 text-sm text-red-500 transition-all hover:bg-red-50 dark:hover:bg-red-950/30 mb-1"
+              className="flex items-center gap-3 w-full rounded-lg p-3 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
             >
               <Trash2 size={16} />
               <span>Clear current chat</span>
             </button>
           )}
-          <UserAccountNav isCollapsed={!isOpen} />
-        </div>
 
-        {isOpen && (
-          <button
-            className="absolute right-[-48px] top-4 rounded-md border border-gray-200 dark:border-white/20 bg-white dark:bg-[#171717] p-2 text-gray-600 dark:text-white lg:hidden"
-            onClick={() => setIsOpen(false)}
-          >
-            <X size={20} />
-          </button>
-        )}
+          {/* AUTHENTICATION UI BLOCK */}
+          <div className="pt-2">
+            {status === "authenticated" ? (
+              <UserAccountNav isCollapsed={!isOpen} />
+            ) : (
+              <button
+                onClick={() => signIn()}
+                className={cn(
+                  "flex items-center gap-3 w-full rounded-lg p-3 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                  !isOpen && "justify-center p-0 h-10 w-10"
+                )}
+              >
+                <LogIn size={18} />
+                {isOpen && <span>Sign In</span>}
+              </button>
+            )}
+          </div>
+        </div>
       </aside>
     </>
   );

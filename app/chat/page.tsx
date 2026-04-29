@@ -13,31 +13,30 @@ export default function NewChatPage() {
   const handleSendMessage = async (content: string) => {
     setIsLoading(true);
     try {
-      // 1. Create a new thread
-      const threadRes = await fetch('/api/threads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: content.slice(0, 30) + (content.length > 30 ? '...' : '') }),
-      });
-
-      if (!threadRes.ok) throw new Error('Failed to create thread');
-      const newThread = await threadRes.json();
-      const threadId = newThread._id;
-
-      // 2. Send the first message
-      await fetch('/api/chat', {
+      // Send message to the API with threadId: 'new'
+      // The API will create the thread and return its ID in the X-Thread-Id header
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: content,
-          threadId: threadId,
+          threadId: 'new',
           history: [],
           model: chatMode
         }),
       });
 
-      // 3. Redirect to the new thread
-      router.push(`/chat/${threadId}`);
+      if (!response.ok) throw new Error('Failed to start chat');
+      
+      const newThreadId = response.headers.get('X-Thread-Id');
+      
+      if (newThreadId) {
+          // Redirect to the newly created thread
+          // The thread page will fetch the message we just sent (since it's in the DB now)
+          router.push(`/chat/${newThreadId}`);
+      } else {
+          router.push('/chat');
+      }
     } catch (error) {
       console.error('Error starting new chat:', error);
       setIsLoading(false);

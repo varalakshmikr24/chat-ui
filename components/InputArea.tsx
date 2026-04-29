@@ -190,7 +190,7 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
             onKeyDown={handleKeyDown}
             placeholder="Ask anything..."
             className="flex-1 resize-none bg-transparent py-3.5 pr-32 text-sm md:text-base outline-none disabled:cursor-not-allowed min-h-[56px] placeholder:text-gray-400 dark:placeholder:text-gray-500"
-            disabled={isLoading}
+            disabled={false}
           />
 
           {/* Model Selector Pill */}
@@ -208,8 +208,8 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
 
           <button
             type="submit"
-            disabled={!input.trim() || isLoading}
-            className={`flex h-9 w-9 shrink-0 mb-1.5 items-center justify-center rounded-full transition-all ${input.trim() && !isLoading
+            disabled={false}
+            className={`flex h-9 w-9 shrink-0 mb-1.5 items-center justify-center rounded-full transition-all ${input.trim()
               ? "bg-black dark:bg-white text-white dark:text-black shadow-lg hover:scale-105 active:scale-95"
               : "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 opacity-50 cursor-not-allowed"
               }`}

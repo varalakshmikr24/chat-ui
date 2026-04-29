@@ -75,45 +75,50 @@ export default function Home() {
 
     let activeId = currentChatId;
     let initialUpdatedChats: ChatSession[] = [];
-    let assistantMessageId: string | null = null; // Track the placeholder ID
-
-    // 1. CHAT SESSION LOGIC
-    if (!activeId) {
-      activeId = crypto.randomUUID();
-      const newChat: ChatSession = {
-        id: activeId,
-        title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
-        messages: [userMessage],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      initialUpdatedChats = [newChat, ...chats];
-      setChats(initialUpdatedChats);
-      setCurrentChatId(activeId);
-    } else {
-      initialUpdatedChats = chats.map(chat => {
-        if (chat.id === activeId) {
-          return {
-            ...chat,
-            messages: [...chat.messages, userMessage],
-            updatedAt: Date.now()
-          };
-        }
-        return chat;
-      }).sort((a, b) => {
-        if (a.isPinned && !b.isPinned) return -1;
-        if (!a.isPinned && b.isPinned) return 1;
-        return b.updatedAt - a.updatedAt;
-      });
-      setChats(initialUpdatedChats);
-    }
+    let assistantMessageId: string | null = null;
 
     // 2. UPDATE UI STATE (Only call these once)
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
-    // 3. API CALL & ERROR HANDLING
     try {
+      // 1. CHAT SESSION LOGIC (Wait for DB to create Chat)
+      if (!activeId) {
+        const res = await fetch('/api/conversations', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          activeId = data.id;
+          setCurrentChatId(activeId);
+          window.history.replaceState(null, '', `/chat/${activeId}`);
+        } else {
+           throw new Error("Failed to create conversation");
+        }
+        const newChat: ChatSession = {
+          id: activeId!,
+          title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
+          messages: [userMessage],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        initialUpdatedChats = [newChat, ...chats];
+        setChats(initialUpdatedChats);
+      } else {
+        initialUpdatedChats = chats.map(chat => {
+          if (chat.id === activeId) {
+            return {
+              ...chat,
+              messages: [...chat.messages, userMessage],
+              updatedAt: Date.now()
+            };
+          }
+          return chat;
+        }).sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1;
+          if (!a.isPinned && b.isPinned) return 1;
+          return b.updatedAt - a.updatedAt;
+        });
+        setChats(initialUpdatedChats);
+      }
       if (chatMode === 'demo') {
         const QUESTION_MAP: Record<string, string> = {
           'chat_q1': "The Next.js App Router (introduced in version 13) uses React Server Components to simplify data fetching and improve performance by reducing the amount of JavaScript sent to the client.",
@@ -184,7 +189,7 @@ export default function Home() {
           body: JSON.stringify({
             message: content,
             history: initialUpdatedChats.find(c => c.id === activeId)?.messages.slice(-10) || [],
-            threadId: activeId,
+            conversationId: activeId,
             model: chatMode
           }),
         });
@@ -192,6 +197,13 @@ export default function Home() {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || `Server error: ${response.status}`);
+        }
+
+        const newChatId = response.headers.get('X-Chat-Id');
+        if (newChatId && !activeId) {
+          window.history.replaceState(null, '', `/chat/${newChatId}`);
+          setCurrentChatId(newChatId);
+          activeId = newChatId;
         }
 
         const reader = response.body?.getReader();
@@ -393,12 +405,6 @@ export default function Home() {
         onClearChat={handleClearCurrent}
         isOpen={isSidebarOpen}
         setIsOpen={setIsSidebarOpen}
-        chatMode={chatMode}
-        setChatMode={(mode) => {
-          setChatMode(mode as 'demo' | 'gemini' | 'llama');
-          if (isLimitExceeded) setIsLimitExceeded(false);
-        }}
-        isLimitExceeded={isLimitExceeded}
       />
 
       <main

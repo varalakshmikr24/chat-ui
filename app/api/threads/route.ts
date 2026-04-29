@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import connectDB from '@/lib/mongodb';
 import Thread from '@/models/Thread';
+import Message from '@/models/Message';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
   try {
@@ -13,11 +17,36 @@ export async function GET() {
     await connectDB();
 
     const userId = (session.user as any).id;
-    const threads = await Thread.find({ userId })
-      .sort({ updatedAt: -1 })
-      .lean();
+    
+    // Sidebar Filtering: Only fetch threads that have a title other than 'New Conversation'
+    // OR have at least one message in them.
+    // In MongoDB, we can check for threads where title != 'New Conversation'
+    const threads = await Thread.find({ 
+      userId,
+      $or: [
+        { title: { $ne: 'New Conversation' } },
+        // If we want to check for messages, we'd need a subquery or a count, 
+        // but checking title is usually enough for "lazy creation" logic.
+      ]
+    })
+    .sort({ updatedAt: -1 })
+    .lean();
 
-    return NextResponse.json(threads);
+    // Secondary filter: Check if they have messages if title IS 'New Conversation'
+    // (This handles the case where the first message was saved but title wasn't updated yet)
+    const filteredThreads = [];
+    for (const thread of threads) {
+        if (thread.title !== 'New Conversation') {
+            filteredThreads.push(thread);
+        } else {
+            const hasMessages = await Message.exists({ threadId: thread._id.toString() });
+            if (hasMessages) {
+                filteredThreads.push(thread);
+            }
+        }
+    }
+
+    return NextResponse.json(filteredThreads);
   } catch (error) {
     console.error('Error fetching threads:', error);
     return NextResponse.json({ error: 'Failed to fetch threads' }, { status: 500 });

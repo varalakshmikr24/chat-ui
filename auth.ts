@@ -16,27 +16,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
+        if (!credentials?.email || !credentials?.password) return null;
 
         try {
           await connectDB();
-          
           const user = await User.findOne({ email: credentials.email });
 
-          if (!user || !user.passwordHash) {
-            return null;
-          }
+          if (!user || !user.passwordHash) return null;
 
           const isPasswordCorrect = await bcrypt.compare(
             credentials.password as string,
             user.passwordHash
           );
 
-          if (!isPasswordCorrect) {
-            return null;
-          }
+          if (!isPasswordCorrect) return null;
 
           return {
             id: user._id.toString(),
@@ -53,7 +46,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       if (account?.provider === "google" || account?.provider === "github") {
         try {
           await connectDB();
@@ -73,9 +66,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return true;
     },
+    // --- ADD THESE CALLBACKS TO FIX HISTORY ---
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+      }
+      return session;
+    },
   },
-  session: { strategy: "jwt" },
+  session: { 
+    strategy: "jwt",
+    maxAge: 365 * 24 * 60 * 60, // 1 Year (in seconds)
+  },
   secret: process.env.AUTH_SECRET,
 });
-
-
