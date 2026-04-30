@@ -73,6 +73,13 @@ export default function ThreadPage() {
 
       if (!response.ok) throw new Error('Failed to fetch response');
       
+      const newTitle = response.headers.get('X-Thread-Title');
+      if (newTitle) {
+         window.dispatchEvent(new CustomEvent('chat-title-updated', { 
+            detail: { threadId, title: decodeURIComponent(newTitle) } 
+         }));
+      }
+
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       const aiMessageId = crypto.randomUUID();

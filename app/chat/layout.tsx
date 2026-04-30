@@ -28,6 +28,21 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     setMounted(true);
     fetchThreads();
+
+    const handleTitleChange = (e: CustomEvent) => {
+       const { threadId, title, isNew } = e.detail;
+       setThreads(prev => {
+         if (isNew) {
+           // Create a minimal thread object to display immediately
+           const newThread = { _id: threadId, title, createdAt: Date.now(), updatedAt: Date.now() };
+           return [newThread, ...prev];
+         }
+         return prev.map(t => t._id === threadId ? { ...t, title } : t);
+       });
+    };
+    window.addEventListener('chat-title-updated', handleTitleChange as EventListener);
+    
+    return () => window.removeEventListener('chat-title-updated', handleTitleChange as EventListener);
   }, []);
 
   const fetchThreads = async () => {
@@ -45,22 +60,8 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const handleNewChat = async () => {
-    // Optimistic UI could go here, but let's do simple first
-    try {
-        const res = await fetch('/api/threads', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: 'New Conversation' }),
-        });
-        if (res.ok) {
-            const newThread = await res.json();
-            setThreads(prev => [newThread, ...prev]);
-            router.push(`/chat/${newThread._id}`);
-        }
-    } catch (error) {
-        console.error('Failed to create thread:', error);
-    }
+  const handleNewChat = () => {
+    router.push('/chat');
   };
 
   const handleSelectChat = (id: string) => {
