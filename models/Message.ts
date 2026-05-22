@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IMessage extends Document {
-  threadId: mongoose.Types.ObjectId;
+  threadId: string;
   userId: string;
   role: 'user' | 'assistant';
   content: string;
@@ -11,7 +11,7 @@ export interface IMessage extends Document {
 
 const MessageSchema = new Schema<IMessage>(
   {
-    threadId: { type: Schema.Types.ObjectId, ref: 'Thread', required: true },
+    threadId: { type: String, ref: 'Thread', required: true },
     userId: { type: String, required: true },
     role: { type: String, enum: ['user', 'assistant'], required: true },
     content: { type: String, required: true },

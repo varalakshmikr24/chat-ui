@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IThread extends Document {
-  // Change this from ObjectId to string to support UUIDs
+  _id: string;
   userId: string;
   title: string;
   createdAt: Date;
@@ -10,7 +10,7 @@ export interface IThread extends Document {
 
 const ThreadSchema = new Schema<IThread>(
   {
-    // Change type to String to match the UUID coming from your session
+    _id: { type: String, required: true },
     userId: { type: String, required: true },
     title: { type: String, required: true },
   },

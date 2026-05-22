@@ -1,63 +1,45 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { CircleArrowUp, Plus, ChevronDown, Check, Sparkles, Cpu, Settings, Zap } from 'lucide-react';
+import { CircleArrowUp, Plus, ChevronDown, Check, Sparkles, Cpu, Zap, FileUp, Image as ImageIcon, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface InputAreaProps {
-  onSendMessage: (content: string, questionId?: string) => void;
+  // 1. Updated prop type to accept an optional file alongside the text content
+  onSendMessage: (content: string, file?: File | null) => void;
   isLoading: boolean;
-  chatMode: 'demo' | 'gemini' | 'llama';
-  setChatMode: (mode: 'demo' | 'gemini' | 'llama') => void;
+  chatMode: 'gemini' | 'llama';
+  setChatMode: (mode: 'gemini' | 'llama') => void;
 }
 
-const PRESET_QUESTIONS = [
-  { id: 'chat_q1', text: "Tell me about Next.js App Router" },
-  { id: 'chat_q2', text: "How does state management work here?" },
-  { id: 'chat_q3', text: "What are the benefits of TypeScript?" },
-  { id: 'chat_q4', text: "Explain the project architecture" },
-  { id: 'chat_q5', text: "How to deploy this to Vercel?" },
-  { id: 'chat_q6', text: "What is Tailwind CSS v4's main feature?" },
-  { id: 'chat_q7', text: "How to implement dark mode manually?" },
-  { id: 'chat_q8', text: "What is the role of an API route handler?" },
-  { id: 'chat_q9', text: "Explain React Server Components" },
-  { id: 'chat_q10', text: "How to optimize performance in Next.js?" },
-];
-
 const MODELS = [
-  { id: 'demo', name: 'Demo', icon: Settings, color: 'text-amber-500' },
   { id: 'gemini', name: 'Gemini', icon: Sparkles, color: 'text-emerald-500' },
   { id: 'llama', name: 'Llama (Groq)', icon: Cpu, color: 'text-blue-500' },
 ] as const;
 
 export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: InputAreaProps) => {
   const [input, setInput] = useState('');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUploadMenuOpen, setIsUploadMenuOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [extendedThinking, setExtendedThinking] = useState(false);
 
+  // 2. Added state to hold the attached file locally
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const uploadMenuRef = useRef<HTMLDivElement>(null);
   const modelMenuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const currentModel = MODELS.find(m => m.id === chatMode) || MODELS[1];
+  const currentModel = MODELS.find(m => m.id === chatMode) || MODELS[0];
 
+  // 3. Modified submit handler to forward the file and reset it
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (input.trim() && !isLoading) {
-      const trimmedInput = input.trim();
-      const matchedQuestion = PRESET_QUESTIONS.find(
-        q => q.text.toLowerCase() === trimmedInput.toLowerCase()
-      );
 
-      onSendMessage(trimmedInput, matchedQuestion?.id);
+    // Allow submission if there is text OR a file attached
+    if ((input.trim() || attachedFile) && !isLoading) {
+      onSendMessage(input.trim(), attachedFile);
       setInput('');
-    }
-  };
-
-  const handleSelectQuestion = (question: { id: string; text: string }) => {
-    setInput(question.text);
-    setIsMenuOpen(false);
-    if (textareaRef.current) {
-      textareaRef.current.focus();
+      setAttachedFile(null); // Clear file slot after sending
     }
   };
 
@@ -68,11 +50,28 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
     }
   };
 
+  const triggerAttachmentUpload = (acceptType: string) => {
+    if (fileInputRef.current) {
+      fileInputRef.current.accept = acceptType;
+      fileInputRef.current.click();
+    }
+    setIsUploadMenuOpen(false);
+  };
+
+  // 4. Updated file parser to set state correctly
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      setAttachedFile(files[0]);
+      console.log("Attached file ready for RAG:", files[0].name);
+    }
+  };
+
   // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
+      if (uploadMenuRef.current && !uploadMenuRef.current.contains(event.target as Node)) {
+        setIsUploadMenuOpen(false);
       }
       if (modelMenuRef.current && !modelMenuRef.current.contains(event.target as Node)) {
         setIsModelMenuOpen(false);
@@ -92,33 +91,46 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 md:px-0 relative">
+
+      {/* Hidden Native File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
       <AnimatePresence>
-        {/* Question Menu */}
-        {isMenuOpen && (
+        {/* Upload Attachments Menu */}
+        {isUploadMenuOpen && (
           <motion.div
-            ref={menuRef}
+            ref={uploadMenuRef}
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="absolute bottom-full left-4 right-4 mb-2 max-h-60 overflow-y-auto rounded-xl border border-gray-200 bg-white/90 backdrop-blur-xl p-2 shadow-2xl dark:border-gray-700 dark:bg-[#303030]/90 md:left-0 md:right-0 z-50"
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-full left-4 mb-3 w-48 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur-xl p-1.5 shadow-2xl dark:border-gray-800 dark:bg-[#212121]/95 z-50 overflow-hidden flex flex-col gap-0.5"
           >
-            <div className="mb-2 px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Suggested Questions
-            </div>
-            {PRESET_QUESTIONS.map((q) => (
-              <button
-                key={q.id}
-                onClick={() => handleSelectQuestion(q)}
-                className="flex w-full items-center px-3 py-2 text-sm text-left rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
-              >
-                {q.text}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() => triggerAttachmentUpload(".pdf,.doc,.docx,.txt,.csv")}
+              className="flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium text-left rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-200"
+            >
+              <FileUp size={16} className="text-gray-500 dark:text-gray-400" />
+              <span>Upload files</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => triggerAttachmentUpload("image/*")}
+              className="flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium text-left rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-200"
+            >
+              <ImageIcon size={16} className="text-gray-500 dark:text-gray-400" />
+              <span>Upload photos</span>
+            </button>
           </motion.div>
         )}
 
-        {/* Model Matcher/Dropdown */}
+        {/* Model Dropdown Menu */}
         {isModelMenuOpen && (
           <motion.div
             ref={modelMenuRef}
@@ -132,8 +144,9 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
               {MODELS.map((model) => (
                 <button
                   key={model.id}
+                  type="button"
                   onClick={() => {
-                    setChatMode(model.id as any);
+                    setChatMode(model.id);
                     setIsModelMenuOpen(false);
                   }}
                   className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200 ${chatMode === model.id
@@ -172,14 +185,33 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
         onSubmit={handleSubmit}
         className="relative flex w-full flex-col rounded-3xl border border-gray-200 bg-white/80 backdrop-blur-md shadow-xl transition-all hover:shadow-2xl focus-within:ring-2 focus-within:ring-blue-500/20 dark:border-gray-700 dark:bg-[#2f2f2f]/80 dark:focus-within:ring-blue-500/40"
       >
+        {/* 5. Added Document Preview Chip directly above input text when a file is staged */}
+        {attachedFile && (
+          <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-xs font-medium text-gray-700 dark:text-gray-300">
+              <FileUp size={14} className="text-blue-500" />
+              <span className="max-w-[200px] truncate">{attachedFile.name}</span>
+              <button
+                type="button"
+                onClick={() => setAttachedFile(null)}
+                className="ml-1 text-gray-400 hover:text-red-500 transition-colors"
+                title="Remove attachment"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex w-full items-end gap-2 p-2 px-3">
+          {/* Main Attachment Trigger '+' Button */}
           <button
             type="button"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="flex h-9 w-9 shrink-0 mb-1.5 items-center justify-center rounded-xl bg-gray-100/50 dark:bg-gray-800/50 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
-            title="Preset questions"
+            onClick={() => setIsUploadMenuOpen(!isUploadMenuOpen)}
+            className="flex h-9 w-9 shrink-0 mb-1.5 items-center justify-center rounded-xl bg-gray-100/50 dark:bg-gray-800/50 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-all"
+            title="Upload options"
           >
-            <Plus size={18} className={`transition-transform duration-200 ${isMenuOpen ? "rotate-45" : ""}`} />
+            <Plus size={18} className={`transition-transform duration-200 ${isUploadMenuOpen ? "rotate-45" : ""}`} />
           </button>
 
           <textarea
@@ -188,8 +220,8 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask anything..."
-            className="flex-1 resize-none bg-transparent py-3.5 pr-32 text-sm md:text-base outline-none disabled:cursor-not-allowed min-h-[56px] placeholder:text-gray-400 dark:placeholder:text-gray-500"
+            placeholder={attachedFile ? "Ask about this document..." : "Ask anything..."}
+            className="flex-1 resize-none bg-transparent py-3.5 pr-32 text-sm md:text-base outline-none disabled:cursor-not-allowed min-h-[56px] placeholder:text-gray-400 dark:placeholder:text-gray-500 text-gray-800 dark:text-gray-100"
             disabled={isLoading}
           />
 
@@ -208,8 +240,9 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
 
           <button
             type="submit"
-            disabled={!input.trim() || isLoading}
-            className={`flex h-9 w-9 shrink-0 mb-1.5 items-center justify-center rounded-full transition-all ${input.trim() && !isLoading
+            // Button lights up if there's text OR an attached file
+            disabled={(!input.trim() && !attachedFile) || isLoading}
+            className={`flex h-9 w-9 shrink-0 mb-1.5 items-center justify-center rounded-full transition-all ${(input.trim() || attachedFile) && !isLoading
               ? "bg-black dark:bg-white text-white dark:text-black shadow-lg hover:scale-105 active:scale-95"
               : "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 opacity-50 cursor-not-allowed"
               }`}
@@ -222,11 +255,6 @@ export const InputArea = ({ onSendMessage, isLoading, chatMode, setChatMode }: I
   );
 };
 
-
-
-
-//import React, { useState, useRef } from 'react';
-
 export const VoiceInterface = () => {
   const [isListening, setIsListening] = useState(false);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
@@ -237,23 +265,20 @@ export const VoiceInterface = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setIsListening(true);
 
-      // 1. Initialize Audio Context for Visualizers
       audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       const source = audioContext.current.createMediaStreamSource(stream);
       const analyzer = audioContext.current.createAnalyser();
       source.connect(analyzer);
 
-      // 2. Setup MediaRecorder for Deepgram
       mediaRecorder.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
       mediaRecorder.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          // Send this blob to your Socket.io server here
-          // socket.emit('audio-stream', event.data);
+          // Send chunks to server logic here
         }
       };
 
-      mediaRecorder.current.start(250); // Send chunks every 250ms
+      mediaRecorder.current.start(250);
     } catch (err) {
       console.error("Microphone access denied", err);
     }
@@ -269,7 +294,6 @@ export const VoiceInterface = () => {
       onClick={isListening ? stopListening : startListening}
       className={`p-3 rounded-full ${isListening ? 'bg-red-500 animate-pulse' : 'bg-zinc-800'}`}
     >
-      {/* Mic Icon Here */}
       {isListening ? "Listening..." : "Start Voice"}
     </button>
   );

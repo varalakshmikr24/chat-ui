@@ -44,3 +44,25 @@ next-env.d.ts
 AGENTS.md
 CLAUDE.md
 README.md
+
+# Virtual Environments (This fixes your current error)
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache and compiled bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables and secrets (Never commit these!)
+.env
+.env.local
+
+# Operating system files
+.DS_Store
+Thumbs.dbvenv/
+.venv/
+__pycache__/
+*.so

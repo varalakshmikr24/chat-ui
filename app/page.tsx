@@ -37,7 +37,8 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [chatMode, setChatMode] = useState<'demo' | 'gemini' | 'llama'>('gemini');
+  // Removed 'demo' option completely from chatMode state
+  const [chatMode, setChatMode] = useState<'gemini' | 'llama'>('gemini');
   const [isLimitExceeded, setIsLimitExceeded] = useState(false);
 
   const { resolvedTheme, setTheme } = useTheme();
@@ -64,25 +65,35 @@ export default function Home() {
     }
   }, [chats, mounted]);
 
-  const handleSendMessage = async (content: string, questionId?: string) => {
+  // Modified to handle optional file processing via FormData proxy architecture
+  const handleSendMessage = async (content: string, file?: File | null) => {
+    if (!content.trim() && !file) return;
+
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Format layout appearance in UI bubble if file is appended
+    const displayUserText = file
+      ? `📎 Attached: ${file.name}\n\n${content || "Summarize this document."}`
+      : content;
+
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
-      content,
+      content: displayUserText,
       timestamp,
     };
 
     let activeId = currentChatId;
     let initialUpdatedChats: ChatSession[] = [];
-    let assistantMessageId: string | null = null; // Track the placeholder ID
 
     // 1. CHAT SESSION LOGIC
     if (!activeId) {
       activeId = crypto.randomUUID();
       const newChat: ChatSession = {
         id: activeId,
-        title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
+        title: file
+          ? `File: ${file.name}`
+          : content.slice(0, 30) + (content.length > 30 ? '...' : ''),
         messages: [userMessage],
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -108,179 +119,73 @@ export default function Home() {
       setChats(initialUpdatedChats);
     }
 
-    // 2. UPDATE UI STATE (Only call these once)
+    // 2. UPDATE UI STATE FOR USER MESSAGE
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
-    // 3. API CALL & ERROR HANDLING
+    // 3. BUILD MULTIPART PAYLOAD FOR DYNAMIC RAG ENDPOINT
+    const formData = new FormData();
+    formData.append("message", content || "Summarize the attached document.");
+    if (file) {
+      formData.append("file", file);
+    }
+
     try {
-      if (chatMode === 'demo') {
-        const QUESTION_MAP: Record<string, string> = {
-          'chat_q1': "The Next.js App Router (introduced in version 13) uses React Server Components to simplify data fetching and improve performance by reducing the amount of JavaScript sent to the client.",
-          'chat_q2': "In this application, we use React's `useState` for local message state and `next-themes` for global theme management. For larger apps, tools like Zustand or Redux are often preferred.",
-          'chat_q3': "TypeScript provides static type checking, which catches errors early in development, improves IDE autocompletion, and makes the codebase much easier to refactor and maintain.",
-          'chat_q4': "This project follows a modular Next.js App Router structure. Components are stored in `/components`, pages in `/app`, and API logic in `/app/api` for clear separation of concerns.",
-          'chat_q5': "To deploy to Vercel, push your code to GitHub, connect your repository in the Vercel dashboard, and it will automatically build and deploy your application with every push.",
-          'chat_q6': "Tailwind CSS v4 introduces a new 'high-performance' engine, zero-config setup, and first-class support for modern CSS features like CSS variables and container queries.",
-          'chat_q7': "Manual dark mode is implemented using the `dark:` utility classes in Tailwind. The `next-themes` library handles the logic of adding the `.dark` class to the HTML element.",
-          'chat_q8': "API Route Handlers in Next.js allow you to create RESTful endpoints. They run on the server, meaning you can safely handle secret keys and database connections away from the client.",
-          'chat_q9': "React Server Components (RSC) allow components to be rendered on the server. This results in faster page loads as the initial HTML is generated and sent before the JavaScript hydrates.",
-          'chat_q10': "Optimization techniques in Next.js include using the `<Image />` component for automatic optimization, implementing dynamic imports, and leveraging Incremental Static Regeneration (ISR).",
-        };
+      // Hit your Next.js internal API Route Proxy
+      const response = await fetch('/api/dynamic-rag', {
+        method: 'POST',
+        body: formData, // Browser auto-injects boundaries
+      });
 
-        const TEXT_TO_ID_MAP: Record<string, string> = {
-          "tell me about next.js app router": "chat_q1",
-          "how does state management work here?": "chat_q2",
-          "what are the benefits of typescript?": "chat_q3",
-          "explain the project architecture": "chat_q4",
-          "how to deploy this to vercel?": "chat_q5",
-          "what is tailwind css v4's main feature?": "chat_q6",
-          "how to implement dark mode manually?": "chat_q7",
-          "what is the role of an api route handler?": "chat_q8",
-          "explain react server components": "chat_q9",
-          "how to optimize performance in next.js?": "chat_q10",
-        };
-
-        const userContent = content.trim().toLowerCase();
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-
-        let aiMessageContent = "";
-        if (questionId && QUESTION_MAP[questionId]) {
-          aiMessageContent = QUESTION_MAP[questionId];
-        } else if (TEXT_TO_ID_MAP[userContent]) {
-          aiMessageContent = QUESTION_MAP[TEXT_TO_ID_MAP[userContent]];
-        } else {
-          aiMessageContent = "That's an interesting question. I'm currently set up to provide detailed answers to preset professional questions in Demo Mode, but I can tell you that Metawurks AI is designed for enterprise-grade performance and scalability.";
-        }
-
-        const aiMessage: Message = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: aiMessageContent,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-
-        setChats(prev => prev.map(chat => {
-          if (chat.id === activeId) {
-            return {
-              ...chat,
-              messages: [...chat.messages, aiMessage],
-              updatedAt: Date.now()
-            };
-          }
-          return chat;
-        }).sort((a, b) => {
-          if (a.isPinned && !b.isPinned) return -1;
-          if (!a.isPinned && b.isPinned) return 1;
-          return b.updatedAt - a.updatedAt;
-        }));
-
-        setMessages(prev => [...prev, aiMessage]);
-      } else {
-        // LIVE STREAMING MODE
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: content,
-            history: initialUpdatedChats.find(c => c.id === activeId)?.messages.slice(-10) || [],
-            threadId: activeId,
-            model: chatMode
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `Server error: ${response.status}`);
-        }
-
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let assistantMessageContent = "";
-
-        assistantMessageId = crypto.randomUUID();
-        setMessages(prev => [...prev, {
-          id: assistantMessageId!,
-          role: 'assistant',
-          content: '',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }]);
-
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value, { stream: true });
-
-            if (chunk.startsWith('{"error":')) {
-              const errorObj = JSON.parse(chunk);
-              throw new Error(errorObj.error);
-            }
-
-            assistantMessageContent += chunk;
-
-            setMessages(prev => prev.map(msg =>
-              msg.id === assistantMessageId ? { ...msg, content: assistantMessageContent } : msg
-            ));
-          }
-
-          // Update final chat history with the full content
-          setChats(prev => prev.map(chat => {
-            if (chat.id === activeId) {
-              const fullAssistantMessage: Message = {
-                id: assistantMessageId!,
-                role: 'assistant',
-                content: assistantMessageContent,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              };
-              return {
-                ...chat,
-                messages: [...chat.messages, fullAssistantMessage],
-                updatedAt: Date.now()
-              };
-            }
-            return chat;
-          }).sort((a, b) => {
-            if (a.isPinned && !b.isPinned) return -1;
-            if (!a.isPinned && b.isPinned) return 1;
-            return b.updatedAt - a.updatedAt;
-          }));
-        }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
       }
+
+      const data = await response.json();
+      const assistantMessageContent = data.response || data.reply || "No response received";
+
+      const aiMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: assistantMessageContent,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      // 4. APPEND RESPONSE TO ALL SESSIONS & UPDATE STATES
+      setChats(prev => prev.map(chat => {
+        if (chat.id === activeId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, aiMessage],
+            updatedAt: Date.now()
+          };
+        }
+        return chat;
+      }).sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.updatedAt - a.updatedAt;
+      }));
+
+      setMessages(prev => [...prev, aiMessage]);
+
     } catch (err: any) {
       console.error("Chat Error:", err);
       const errorMessage = err.message || "Failed to connect to server.";
 
       if (errorMessage.includes("Quota Exceeded") || errorMessage.includes("429")) {
         setIsLimitExceeded(true);
-        setChatMode('demo');
       }
 
-      setMessages(prev => {
-        // If we have a placeholder ID, find it and update it
-        if (assistantMessageId) {
-          return prev.map(msg =>
-            msg.id === assistantMessageId
-              ? {
-                ...msg,
-                content: `Error: ${errorMessage}`,
-                isError: true
-              }
-              : msg
-          );
-        }
-
-        // Otherwise, add a new error message
-        const errorAssistantMessage: Message = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: `Error: ${errorMessage}`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isError: true
-        };
-        return [...prev, errorAssistantMessage];
-      });
+      const errorAssistantMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `⚠️ Error: ${errorMessage}. Please check if the backend service is running.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorAssistantMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -309,8 +214,7 @@ export default function Home() {
 
   const handleRenameChat = async (id: string, newTitle: string) => {
     try {
-      // Optimistic update
-      setChats(prev => prev.map(chat => 
+      setChats(prev => prev.map(chat =>
         chat.id === id ? { ...chat, title: newTitle, updatedAt: Date.now() } : chat
       ).sort((a, b) => {
         if (a.isPinned && !b.isPinned) return -1;
@@ -323,7 +227,7 @@ export default function Home() {
   };
 
   const handlePinChat = (id: string) => {
-    setChats(prev => prev.map(chat => 
+    setChats(prev => prev.map(chat =>
       chat.id === id ? { ...chat, isPinned: !chat.isPinned } : chat
     ).sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
@@ -333,7 +237,7 @@ export default function Home() {
   };
 
   const handleArchiveChat = (id: string) => {
-    setChats(prev => prev.map(chat => 
+    setChats(prev => prev.map(chat =>
       chat.id === id ? { ...chat, isArchived: true } : chat
     ));
     if (currentChatId === id) {
@@ -348,7 +252,7 @@ export default function Home() {
     const shareData = {
       title: chat.title,
       text: `Check out this chat session: ${chat.title}`,
-      url: window.location.origin + (id ? `/chat/${id}` : ''), // Fallback URL
+      url: window.location.origin + (id ? `/chat/${id}` : ''),
     };
 
     try {
@@ -356,7 +260,6 @@ export default function Home() {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(shareData.url);
-        // Using a simple toast or alert logic here
         console.log("Copied to clipboard");
       }
     } catch (err) {
@@ -395,7 +298,7 @@ export default function Home() {
         setIsOpen={setIsSidebarOpen}
         chatMode={chatMode}
         setChatMode={(mode) => {
-          setChatMode(mode as 'demo' | 'gemini' | 'llama');
+          setChatMode(mode as 'gemini' | 'llama');
           if (isLimitExceeded) setIsLimitExceeded(false);
         }}
         isLimitExceeded={isLimitExceeded}
@@ -419,24 +322,18 @@ export default function Home() {
             )}
 
             <div className="flex items-center gap-2 ml-2">
-              {chatMode === 'demo' ? (
-                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800 animate-pulse">
-                  Mock Mode
-                </span>
-              ) : (
+              <span className={cn(
+                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border",
+                chatMode === 'gemini'
+                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                  : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800"
+              )}>
                 <span className={cn(
-                  "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border",
-                  chatMode === 'gemini'
-                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                    : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800"
-                )}>
-                  <span className={cn(
-                    "mr-1 h-1.5 w-1.5 rounded-full",
-                    chatMode === 'gemini' ? "bg-emerald-500" : "bg-blue-500"
-                  )}></span>
-                  {chatMode === 'gemini' ? 'Gemini Live' : 'Llama 3.1 Live'}
-                </span>
-              )}
+                  "mr-1 h-1.5 w-1.5 rounded-full",
+                  chatMode === 'gemini' ? "bg-emerald-500" : "bg-blue-500"
+                )}></span>
+                {chatMode === 'gemini' ? 'Gemini Live' : 'Llama 3.1 Live'}
+              </span>
             </div>
           </div>
 

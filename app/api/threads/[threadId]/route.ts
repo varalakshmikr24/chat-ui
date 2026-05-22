@@ -16,7 +16,7 @@ export async function DELETE(
     }
 
     const { threadId } = params;
-    if (!threadId || !mongoose.Types.ObjectId.isValid(threadId)) {
+    if (!threadId) {
       return NextResponse.json({ error: 'Invalid Thread ID' }, { status: 400 });
     }
 
@@ -25,13 +25,13 @@ export async function DELETE(
     const userId = (session.user as any).id;
 
     // Verify ownership before deleting
-    const thread = await Thread.findOne({ _id: threadId, userId: new mongoose.Types.ObjectId(userId) });
+    const thread = await Thread.findOne({ _id: threadId, userId: userId });
     if (!thread) {
       return NextResponse.json({ error: 'Thread not found or unauthorized' }, { status: 404 });
     }
 
     // Cascade Delete: Thread and all associated Messages
-    await Message.deleteMany({ threadId: new mongoose.Types.ObjectId(threadId) });
+    await Message.deleteMany({ threadId: threadId });
     await Thread.deleteOne({ _id: threadId });
 
     return NextResponse.json({ message: 'Thread and messages deleted successfully' });
@@ -55,7 +55,7 @@ export async function PATCH(
     const { threadId } = params;
     const { title } = await req.json();
 
-    if (!threadId || !mongoose.Types.ObjectId.isValid(threadId)) {
+    if (!threadId) {
       return NextResponse.json({ error: 'Invalid Thread ID' }, { status: 400 });
     }
 
@@ -71,7 +71,7 @@ export async function PATCH(
     const updatedThread = await Thread.findOneAndUpdate(
       {
         _id: threadId,
-        userId: new mongoose.Types.ObjectId(userId)
+        userId: userId
       },
       {
         title: title.trim(),

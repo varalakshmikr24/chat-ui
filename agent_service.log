@@ -1,0 +1,16 @@
+python-dotenv could not parse statement starting at line 11
+INFO:     Started server process [21847]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+Starting Agno Agent Service on port 8000...
+Received message: hi
+INFO:     127.0.0.1:52220 - "GET /api/agent?message=hi HTTP/1.1" 200 OK
+Received message: What is the current price of Bitcoin today?"
+INFO:     127.0.0.1:35612 - "GET /api/agent?message=What%20is%20the%20current%20price%20of%20Bitcoin%20today%3F%22 HTTP/1.1" 200 OK
+Received message: What is the current price of Bitcoin today?"
+INFO:     127.0.0.1:58846 - "GET /api/agent?message=What%20is%20the%20current%20price%20of%20Bitcoin%20today%3F%22 HTTP/1.1" 200 OK
+Received message: 2+2
+INFO:     127.0.0.1:48428 - "GET /api/agent?message=2%2B2 HTTP/1.1" 200 OK
+Received message: 25/5
+INFO:     127.0.0.1:41772 - "GET /api/agent?message=25%2F5 HTTP/1.1" 200 OK
